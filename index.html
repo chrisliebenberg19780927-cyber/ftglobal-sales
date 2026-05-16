@@ -268,6 +268,16 @@ input[type="number"]:focus{border-color:var(--accent);background:#fff;}
 <!-- PAGE: OVERVIEW -->
 <section id="page-overview" class="page active">
   <div class="last-sync" id="sync-label">Not synced yet</div>
+
+  <!-- FILTER BAR -->
+  <div style="display:flex;gap:8px;padding:10px 16px 4px;background:var(--bg);">
+    <select id="month-filter" onchange="onMonthChange()" style="flex:1;padding:8px 10px;border:1.5px solid var(--border);border-radius:10px;background:var(--card);font-family:var(--font);font-size:13px;font-weight:700;color:var(--ink);outline:none;">
+      <option value="all">All Months</option>
+    </select>
+    <select id="rep-filter" onchange="onRepChange()" style="flex:1;padding:8px 10px;border:1.5px solid var(--border);border-radius:10px;background:var(--card);font-family:var(--font);font-size:13px;font-weight:700;color:var(--ink);outline:none;display:none;">
+      <option value="all">All Reps</option>
+    </select>
+  </div>
   <div class="hero" id="hero-card">
     <div class="hero-label" id="hero-label">My Total Sales</div>
     <div class="hero-val" id="hero-val">R 0</div>
@@ -375,6 +385,8 @@ let currentUser = null;
 let salesRows = [];   // from Sales tab
 let lineRows  = [];   // from Lines tab
 let selectedRep = null;
+let selectedMonth = 'all'; // 'all' or 'YYYY-MM'
+let selectedAdminRep = null; // for admin rep filter
 
 // Targets stored locally
 let repTargets = JSON.parse(localStorage.getItem('ftg_rep_targets')||'{}');
@@ -461,6 +473,8 @@ async function syncAll() {
     const [s, l] = await Promise.all([fetchCSV(SALES_CSV), fetchCSV(LINES_CSV)]);
     salesRows = parseCSV(s, ['date','order','rep','','amount','orderid']);
     lineRows  = parseCSV(l, ['orderid','product','qty','subtotal','cost','totalcost']);
+    buildMonthOptions();
+    buildRepOptions();
     document.getElementById('sync-label').textContent =
       'Synced: '+new Date().toLocaleTimeString('en-ZA',{hour:'2-digit',minute:'2-digit'});
     renderAll();
@@ -513,34 +527,81 @@ function getRepName(raw) {
 }
 
 function filteredSales() {
-  if(currentUser.role==='admin') return salesRows;
-  return salesRows.filter(r => {
-    const rn = getRepName(r.rep);
-    return rn === currentUser.name || r.rep.includes(currentUser.name);
-  });
+  let rows = salesRows;
+  // Month filter
+  if(selectedMonth !== 'all') {
+    rows = rows.filter(r => r.date && r.date.slice(0,7) === selectedMonth);
+  }
+  // Rep filter
+  if(currentUser.role === 'admin') {
+    if(selectedAdminRep) {
+      rows = rows.filter(r => getRepName(r.rep) === selectedAdminRep);
+    }
+  } else {
+    rows = rows.filter(r => {
+      const rn = getRepName(r.rep);
+      return rn === currentUser.name || r.rep.includes(currentUser.name);
+    });
+  }
+  return rows;
 }
 
 function filteredLines() {
-  if(currentUser.role==='admin') return lineRows;
-  // Filter lines by order IDs that belong to this rep
-  // Sales orderid is like "S00112", Lines orderid is like "112, S00112" — extract the S-code
-  const myOrderIds = new Set(filteredSales().map(r=>r.orderid));
+  const myOrders = new Set(filteredSales().map(r => r.orderid));
   return lineRows.filter(r => {
     const rawId = r.orderid || '';
-    // Try direct match first
-    if(myOrderIds.has(rawId)) return true;
-    // Try extracting S-code from "112, S00112" format
+    if(myOrders.has(rawId)) return true;
     const m = rawId.match(/,\s*(S\d+)/i);
-    if(m && myOrderIds.has(m[1])) return true;
-    // Try matching just the numeric part
+    if(m && myOrders.has(m[1])) return true;
     const numMatch = rawId.match(/^(\d+),/);
     if(numMatch) {
-      for(const id of myOrderIds) {
-        if(id.includes(numMatch[1])) return true;
+      for(const id of myOrders) {
+        if(id.replace(/\D/g,'') === numMatch[1]) return true;
       }
     }
     return false;
   });
+}
+
+function buildMonthOptions() {
+  const months = new Set();
+  salesRows.forEach(r => { if(r.date && r.date.length >= 7) months.add(r.date.slice(0,7)); });
+  const sorted = Array.from(months).sort().reverse();
+  const sel = document.getElementById('month-filter');
+  sel.innerHTML = '<option value="all">All Months</option>';
+  sorted.forEach(m => {
+    const [y, mo] = m.split('-');
+    const label = new Date(y, mo-1).toLocaleString('en-ZA', {month:'long', year:'numeric'});
+    sel.innerHTML += `<option value="${m}">${label}</option>`;
+  });
+  const now = new Date();
+  const cur = now.getFullYear()+'-'+String(now.getMonth()+1).padStart(2,'0');
+  if(months.has(cur)) { sel.value = cur; selectedMonth = cur; }
+}
+
+function buildRepOptions() {
+  const repSel = document.getElementById('rep-filter');
+  if(currentUser.role !== 'admin') { repSel.style.display='none'; return; }
+  repSel.style.display='block';
+  const reps = new Set();
+  salesRows.forEach(r => { const n = getRepName(r.rep); if(n && n!=='Unknown') reps.add(n); });
+  repSel.innerHTML = '<option value="all">All Reps</option>';
+  Array.from(reps).sort().forEach(n => {
+    repSel.innerHTML += `<option value="${n}">${n}</option>`;
+  });
+  repSel.value = 'all';
+  selectedAdminRep = null;
+}
+
+function onMonthChange() {
+  selectedMonth = document.getElementById('month-filter').value;
+  renderAll();
+}
+
+function onRepChange() {
+  const v = document.getElementById('rep-filter').value;
+  selectedAdminRep = v === 'all' ? null : v;
+  renderAll();
 }
 
 function getProductStats() {
