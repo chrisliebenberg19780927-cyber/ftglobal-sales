@@ -530,7 +530,7 @@ function filteredSales() {
   let rows = salesRows;
   // Month filter
   if(selectedMonth !== 'all') {
-    rows = rows.filter(r => r.date && r.date.slice(0,7) === selectedMonth);
+    rows = rows.filter(r => parseDate(r.date).slice(0,7) === selectedMonth);
   }
   // Rep filter
   if(currentUser.role === 'admin') {
@@ -563,9 +563,22 @@ function filteredLines() {
   });
 }
 
+function parseDate(raw) {
+  if(!raw) return '';
+  // Handle DD/MM/YYYY
+  const dmy = raw.match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
+  if(dmy) return `${dmy[3]}-${dmy[2]}-${dmy[1]}`;
+  // Handle YYYY-MM-DD already
+  if(raw.match(/^\d{4}-\d{2}-\d{2}/)) return raw.slice(0,10);
+  return raw;
+}
+
 function buildMonthOptions() {
   const months = new Set();
-  salesRows.forEach(r => { if(r.date && r.date.length >= 7) months.add(r.date.slice(0,7)); });
+  salesRows.forEach(r => {
+    const d = parseDate(r.date);
+    if(d && d.length >= 7) months.add(d.slice(0,7));
+  });
   const sorted = Array.from(months).sort().reverse();
   const sel = document.getElementById('month-filter');
   sel.innerHTML = '<option value="all">All Months</option>';
@@ -841,12 +854,16 @@ function renderTargets() {
       <div class="tr"><label>GP% Target</label><input type="number" id="my-gp-tgt" value="${t.gpTarget||30}" min="0" max="100" step="1"></div>
     </div>`;
 
-  // Admin: show rep targets too
+  // Always show product targets
+  document.getElementById('product-targets-heading').textContent='Product Targets';
+  const prods = getProductStats();
+  const list = document.getElementById('product-target-list');
+  list.innerHTML='';
   if(currentUser.role==='admin'){
-    document.getElementById('product-targets-heading').textContent='Rep Targets';
+    // Also show rep targets above products
+    const repSection = document.createElement('div');
+    repSection.innerHTML='<div class="sh" style="margin-top:0">Rep Targets</div>';
     const repStats = getRepStats();
-    const repSection = document.getElementById('product-target-list');
-    repSection.innerHTML='';
     const card = document.createElement('div');
     card.className='tcard';
     repStats.forEach(r=>{
@@ -857,21 +874,30 @@ function renderTargets() {
         <div class="tr"><label>GP% Target</label><input type="number" id="repg-${r.name.replace(/\s/g,'_')}" value="${rt.gpTarget||30}" min="0" max="100" step="1"></div>`;
     });
     repSection.appendChild(card);
-  } else {
-    document.getElementById('product-targets-heading').textContent='Product Targets';
-    const prods = getProductStats();
-    const list = document.getElementById('product-target-list');
-    list.innerHTML='';
-    prods.forEach(p=>{
-      const pt = productTargets[p.name]||{};
-      const d=document.createElement('div');
-      d.className='tcard';
-      d.innerHTML=`
-        <div class="th"><span class="th-name">${p.name}</span></div>
-        <div class="tr"><label>Units Target (per month)</label><input type="number" id="pu-${p.name.replace(/\s/g,'_').slice(0,20)}" value="${pt.unitsTarget||0}" min="0" step="10"></div>
-        <div class="tr"><label>Sales Target (R)</label><input type="number" id="ps-${p.name.replace(/\s/g,'_').slice(0,20)}" value="${pt.salesTarget||0}" min="0" step="1000"></div>`;
-      list.appendChild(d);
-    });
+    list.appendChild(repSection);
+    const divider = document.createElement('div');
+    divider.className='divider';
+    list.appendChild(divider);
+    const prodHeading = document.createElement('div');
+    prodHeading.className='sh';
+    prodHeading.textContent='Product Targets';
+    list.appendChild(prodHeading);
+  }
+  prods.forEach(p=>{
+    const pt = productTargets[p.name]||{};
+    const d=document.createElement('div');
+    d.className='tcard';
+    d.innerHTML=`
+      <div class="th"><span class="th-name">${p.name}</span></div>
+      <div class="tr"><label>Units Target (per month)</label><input type="number" id="pu-${p.name.replace(/\s/g,'_').slice(0,20)}" value="${pt.unitsTarget||0}" min="0" step="10"></div>
+      <div class="tr"><label>Sales Target (R)</label><input type="number" id="ps-${p.name.replace(/\s/g,'_').slice(0,20)}" value="${pt.salesTarget||0}" min="0" step="1000"></div>`;
+    list.appendChild(d);
+  });
+  if(!prods.length) {
+    const empty = document.createElement('div');
+    empty.className='empty';
+    empty.innerHTML='<p>Sync to load product data</p>';
+    list.appendChild(empty);
   }
 }
 
