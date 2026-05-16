@@ -523,8 +523,24 @@ function filteredSales() {
 function filteredLines() {
   if(currentUser.role==='admin') return lineRows;
   // Filter lines by order IDs that belong to this rep
+  // Sales orderid is like "S00112", Lines orderid is like "112, S00112" — extract the S-code
   const myOrderIds = new Set(filteredSales().map(r=>r.orderid));
-  return lineRows.filter(r => myOrderIds.has(r.orderid));
+  return lineRows.filter(r => {
+    const rawId = r.orderid || '';
+    // Try direct match first
+    if(myOrderIds.has(rawId)) return true;
+    // Try extracting S-code from "112, S00112" format
+    const m = rawId.match(/,\s*(S\d+)/i);
+    if(m && myOrderIds.has(m[1])) return true;
+    // Try matching just the numeric part
+    const numMatch = rawId.match(/^(\d+),/);
+    if(numMatch) {
+      for(const id of myOrderIds) {
+        if(id.includes(numMatch[1])) return true;
+      }
+    }
+    return false;
+  });
 }
 
 function getProductStats() {
