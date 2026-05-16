@@ -472,10 +472,20 @@ async function syncAll() {
   icon.classList.add('spinning');
   toast('Syncing…');
   try {
-    const [s, l, t] = await Promise.all([fetchCSV(SALES_CSV), fetchCSV(LINES_CSV), fetchCSV(TARGETS_CSV)]);
-    salesRows  = parseCSV(s, ['date','order','rep','','amount','orderid']);
-    lineRows   = parseCSV(l, ['orderid','product','qty','subtotal','cost','totalcost']);
-    targetRows = parseCSV(t, ['product','cost','sell','month','unitsTarget','salesTarget']);
+    const s = await fetchCSV(SALES_CSV);
+    salesRows = parseCSV(s, ['date','order','rep','','amount','orderid']);
+
+    const l = await fetchCSV(LINES_CSV);
+    lineRows = parseCSV(l, ['orderid','product','qty','subtotal','cost','totalcost']);
+
+    try {
+      const t = await fetchCSV(TARGETS_CSV);
+      targetRows = parseCSV(t, ['product','cost','sell','month','unitsTarget','salesTarget']);
+    } catch(e) {
+      console.warn('Targets fetch failed, continuing without:', e);
+      targetRows = [];
+    }
+
     buildMonthOptions();
     buildRepOptions();
     document.getElementById('sync-label').textContent =
@@ -483,7 +493,7 @@ async function syncAll() {
     renderAll();
     toast('Synced ✓','ok');
   } catch(e) {
-    toast('Sync failed','err');
+    toast('Sync failed — check connection','err');
     console.error(e);
   } finally { icon.classList.remove('spinning'); }
 }
