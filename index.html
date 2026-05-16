@@ -637,10 +637,16 @@ function getProductStats() {
   // Seed all products from targetRows for selected month
   if(targetRows.length) {
     const month = selectedMonth === 'all' ? null : selectedMonth;
+    const seenCodes = new Set();
     targetRows.forEach(r => {
       if(month && r.month !== month) return;
+      const code = extractCode(r.product);
       const name = cleanProduct(r.product);
       if(!name || name==='FALSE') return;
+      // Use code as dedup key if available
+      const key = code || name;
+      if(seenCodes.has(key)) return;
+      seenCodes.add(key);
       if(!stats[name]) stats[name] = {name, qty:0, subtotal:0, totalcost:0};
     });
   }
@@ -881,10 +887,23 @@ function openProductModal(p) {
 // ═══════════════════════════════════════
 // TARGETS
 // ═══════════════════════════════════════
+function extractCode(name) {
+  const m = (name||'').match(/\[(\d+)\]/);
+  return m ? m[1] : null;
+}
+
 function getTargetForProduct(productName) {
   const month = selectedMonth === 'all' ? null : selectedMonth;
-  const clean = cleanProduct(productName);
-  const rows = targetRows.filter(r => cleanProduct(r.product) === clean || r.product === productName);
+  const code = extractCode(productName);
+  const clean = cleanProduct(productName).toLowerCase();
+
+  const rows = targetRows.filter(r => {
+    // Match by product code first (most reliable)
+    if(code && extractCode(r.product) === code) return true;
+    // Fallback: match by cleaned name
+    return cleanProduct(r.product).toLowerCase() === clean;
+  });
+
   if(!rows.length) return null;
   if(month) {
     const row = rows.find(r => r.month === month);
