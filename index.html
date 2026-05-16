@@ -898,11 +898,13 @@ function getTargetForProduct(productName) {
   const clean = cleanProduct(productName).toLowerCase();
 
   const rows = targetRows.filter(r => {
-    // Match by product code first (most reliable)
     if(code && extractCode(r.product) === code) return true;
-    // Fallback: match by cleaned name
     return cleanProduct(r.product).toLowerCase() === clean;
   });
+
+  if(code === '10019') {
+    console.log('DEBUG spare ribs:', productName, 'code:', code, 'month:', month, 'rows found:', rows.length, rows.slice(0,3));
+  }
 
   if(!rows.length) return null;
   if(month) {
