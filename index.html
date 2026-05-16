@@ -220,9 +220,7 @@ input[type="number"]:focus{border-color:var(--accent);background:#fff;}
 </head>
 <body>
 
-<!-- ══════════════════════════════════
-     LOGIN SCREEN
-══════════════════════════════════ -->
+<!-- LOGIN SCREEN -->
 <div id="login-screen" class="login-screen">
   <div class="login-logo">
     <div class="brand">FT<span>Global</span></div>
@@ -248,12 +246,9 @@ input[type="number"]:focus{border-color:var(--accent);background:#fff;}
   <div class="login-error" id="login-error">Incorrect password. Please try again.</div>
 </div>
 
-<!-- ══════════════════════════════════
-     MAIN APP
-══════════════════════════════════ -->
+<!-- MAIN APP -->
 <div id="main-app" style="display:none">
 
-<!-- TOP BAR -->
 <header class="topbar">
   <div class="brand-sm">FT<span>Global</span></div>
   <div class="topbar-right">
@@ -268,8 +263,6 @@ input[type="number"]:focus{border-color:var(--accent);background:#fff;}
 <!-- PAGE: OVERVIEW -->
 <section id="page-overview" class="page active">
   <div class="last-sync" id="sync-label">Not synced yet</div>
-
-  <!-- FILTER BAR -->
   <div style="display:flex;gap:8px;padding:10px 16px 4px;background:var(--bg);">
     <select id="month-filter" onchange="onMonthChange()" style="flex:1;padding:8px 10px;border:1.5px solid var(--border);border-radius:10px;background:var(--card);font-family:var(--font);font-size:13px;font-weight:700;color:var(--ink);outline:none;">
       <option value="all">All Months</option>
@@ -292,18 +285,16 @@ input[type="number"]:focus{border-color:var(--accent);background:#fff;}
       <span id="hero-target-lbl">Target: R 0</span>
     </div>
   </div>
-
   <div class="strip">
     <div class="sc"><div class="sv" id="sc-orders" style="color:var(--accent)">0</div><div class="sl">Orders</div></div>
     <div class="sc"><div class="sv" id="sc-products" style="color:var(--green)">0</div><div class="sl">Products</div></div>
     <div class="sc"><div class="sv" id="sc-gp" style="color:var(--amber)">0%</div><div class="sl">Overall GP</div></div>
   </div>
-
   <div class="sh">Top Products</div>
   <div id="product-list"></div>
 </section>
 
-<!-- PAGE: REPS (ADMIN ONLY) -->
+<!-- PAGE: REPS -->
 <section id="page-reps" class="page">
   <div class="sh">Sales Representatives</div>
   <div class="rep-tabs" id="rep-tabs"></div>
@@ -320,19 +311,15 @@ input[type="number"]:focus{border-color:var(--accent);background:#fff;}
 <section id="page-targets" class="page">
   <div class="sh">My Monthly Target</div>
   <div id="target-section"></div>
-
   <div class="sh" id="product-targets-heading">Product Targets</div>
   <div id="product-target-list"></div>
-
   <div style="margin-top:4px">
     <button class="btn btn-primary" onclick="saveTargets()">Save Targets</button>
   </div>
-
   <div class="divider"></div>
   <button class="btn btn-danger" onclick="doLogout()" style="margin-top:0">Sign Out</button>
 </section>
 
-<!-- BOTTOM NAV -->
 <nav class="nav" id="main-nav">
   <button class="nb active" id="nb-overview" onclick="goPage('overview',this)">
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg>
@@ -354,7 +341,6 @@ input[type="number"]:focus{border-color:var(--accent);background:#fff;}
 
 </div><!-- end main-app -->
 
-<!-- MODAL -->
 <div class="overlay" id="modal" style="display:none" onclick="if(event.target===this)this.style.display='none'">
   <div class="modal">
     <div class="mhandle"></div>
@@ -372,7 +358,6 @@ const SALES_CSV   = `https://docs.google.com/spreadsheets/d/e/${SHEET_ID}/pub?ou
 const LINES_CSV   = `https://docs.google.com/spreadsheets/d/e/${SHEET_ID}/pub?output=csv&gid=838793323`;
 const TARGETS_CSV = `https://docs.google.com/spreadsheets/d/e/${SHEET_ID}/pub?gid=715610899&single=true&output=csv`;
 
-// Users — add more reps here
 const USERS = {
   'admin':            { password:'Cloe50.',  role:'admin',  name:'Chris Liebenberg' },
   'Chris Liebenberg': { password:'James',    role:'rep',    name:'Chris Liebenberg' },
@@ -385,16 +370,13 @@ const USERS = {
 let currentUser = null;
 let salesRows = [];
 let lineRows  = [];
-let targetRows = []; // from Targets tab
+let targetRows = [];
 let selectedRep = null;
 let selectedMonth = 'all';
 let selectedAdminRep = null;
 
-// Targets stored locally
 let repTargets = JSON.parse(localStorage.getItem('ftg_rep_targets')||'{}');
-// { repName: { salesTarget: 500000, gpTarget: 30 } }
 let productTargets = JSON.parse(localStorage.getItem('ftg_prod_targets')||'{}');
-// { productName: { unitsTarget: 100, salesTarget: 50000 } }
 
 // ═══════════════════════════════════════
 // HELPERS
@@ -404,19 +386,17 @@ const fmtN = n => Number(n||0).toLocaleString('en-ZA',{minimumFractionDigits:0,m
 const pct  = (a,t) => t>0 ? Math.round(a/t*100) : 0;
 const cap  = v => Math.min(v,100);
 const fc   = p => p>=100?'g':p>=70?'a':'r';
-const bl   = p => p>=100?'✓ Hit':p>=70?'~ Close':'✗ Behind';
 const initials = name => name.split(' ').map(w=>w[0]?.toUpperCase()).join('').slice(0,2)||'??';
-const cleanName = s => {
-  // Remove "ID, " prefix like "105, S00105" → "S00105"
-  if(!s) return '';
-  const m = s.match(/^\d+,\s*(.+)$/);
-  return m ? m[1] : s;
-};
+
 const cleanProduct = s => {
-  // Remove "[10019] " prefix
   if(!s) return '';
   return s.replace(/^\d+,\s*\[\d+\]\s*/,'').replace(/^\[\d+\]\s*/,'').trim();
 };
+
+function extractCode(name) {
+  const m = (name||'').match(/\[(\d+)\]/);
+  return m ? m[1] : null;
+}
 
 function gp(subtotal, totalCost) {
   if(!subtotal || subtotal<=0) return 0;
@@ -431,7 +411,6 @@ function doLogin() {
   const pass    = document.getElementById('login-pass').value;
   const err     = document.getElementById('login-error');
   err.style.display='none';
-
   if(!nameKey){ err.textContent='Please select your name.'; err.style.display='block'; return; }
   const user = USERS[nameKey];
   if(!user || user.password !== pass){
@@ -443,11 +422,8 @@ function doLogin() {
   document.getElementById('login-screen').style.display='none';
   document.getElementById('main-app').style.display='block';
   document.getElementById('user-chip').textContent = currentUser.role==='admin' ? '⚡ Admin' : currentUser.name.split(' ')[0];
-
-  // Show/hide reps tab
   const repBtn = document.getElementById('nb-reps');
   repBtn.style.display = currentUser.role==='admin' ? 'flex' : 'none';
-
   selectedRep = currentUser.role==='admin' ? null : currentUser.name;
   syncAll();
 }
@@ -482,7 +458,7 @@ async function syncAll() {
       const t = await fetchCSV(TARGETS_CSV);
       targetRows = parseCSV(t, ['product','cost','sell','month','unitsTarget','salesTarget']);
     } catch(e) {
-      console.warn('Targets fetch failed, continuing without:', e);
+      console.warn('Targets fetch failed:', e);
       targetRows = [];
     }
 
@@ -532,7 +508,6 @@ function splitCSVLine(line) {
 // DATA ACCESSORS
 // ═══════════════════════════════════════
 function getRepName(raw) {
-  // raw could be "2, Chris Liebenberg2" → extract name
   if(!raw) return 'Unknown';
   const m = raw.match(/,\s*(.+?)(\d*)$/);
   if(m) return m[1].trim();
@@ -541,11 +516,9 @@ function getRepName(raw) {
 
 function filteredSales() {
   let rows = salesRows;
-  // Month filter
   if(selectedMonth !== 'all') {
     rows = rows.filter(r => parseDate(r.date).slice(0,7) === selectedMonth);
   }
-  // Rep filter
   if(currentUser.role === 'admin') {
     if(selectedAdminRep) {
       rows = rows.filter(r => getRepName(r.rep) === selectedAdminRep);
@@ -578,10 +551,8 @@ function filteredLines() {
 
 function parseDate(raw) {
   if(!raw) return '';
-  // Handle DD/MM/YYYY
   const dmy = raw.match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
   if(dmy) return `${dmy[3]}-${dmy[2]}-${dmy[1]}`;
-  // Handle YYYY-MM-DD already
   if(raw.match(/^\d{4}-\d{2}-\d{2}/)) return raw.slice(0,10);
   return raw;
 }
@@ -630,11 +601,56 @@ function onRepChange() {
   renderAll();
 }
 
+// ═══════════════════════════════════════
+// TARGET LOOKUP — FIX: match by product code from targetRows
+// raw product name from Odoo e.g. "PORK SPARE RIBS 10kg"
+// target sheet name e.g. "[10019] PORK SPARE RIBS p/kg"
+// We match by [code] in the target sheet row vs code embedded in lineRows product name
+// ═══════════════════════════════════════
+function getTargetForProduct(productName, rawLineProductName) {
+  const month = selectedMonth === 'all' ? null : selectedMonth;
+
+  // Try to get code from the raw Odoo line product name first
+  const codeFromLine = extractCode(rawLineProductName || '');
+  // Also try from the display name (in case it still has the code)
+  const codeFromDisplay = extractCode(productName || '');
+  const code = codeFromLine || codeFromDisplay;
+
+  const cleanDisplay = productName.toLowerCase().trim();
+
+  const rows = targetRows.filter(r => {
+    const rCode = extractCode(r.product);
+    if(code && rCode && rCode === code) return true;
+    // Fallback: match by cleaned name
+    return cleanProduct(r.product).toLowerCase().trim() === cleanDisplay;
+  });
+
+  if(!rows.length) return null;
+
+  if(month) {
+    const row = rows.find(r => r.month === month);
+    if(row) return {
+      unitsTarget: parseFloat(row.unitsTarget)||0,
+      salesTarget: parseFloat(row.salesTarget)||0
+    };
+    return null;
+  }
+
+  // All months: sum
+  return {
+    unitsTarget: rows.reduce((s,r)=>s+(parseFloat(r.unitsTarget)||0),0),
+    salesTarget: rows.reduce((s,r)=>s+(parseFloat(r.salesTarget)||0),0)
+  };
+}
+
+// ═══════════════════════════════════════
+// PRODUCT STATS — now stores rawProduct for target matching
+// ═══════════════════════════════════════
 function getProductStats() {
   const lines = productLines();
   const stats = {};
 
-  // Seed all products from targetRows for selected month
+  // Seed from targetRows so products with targets but no sales still appear
   if(targetRows.length) {
     const month = selectedMonth === 'all' ? null : selectedMonth;
     const seenCodes = new Set();
@@ -643,19 +659,19 @@ function getProductStats() {
       const code = extractCode(r.product);
       const name = cleanProduct(r.product);
       if(!name || name==='FALSE') return;
-      // Use code as dedup key if available
       const key = code || name;
       if(seenCodes.has(key)) return;
       seenCodes.add(key);
-      if(!stats[name]) stats[name] = {name, qty:0, subtotal:0, totalcost:0};
+      if(!stats[name]) stats[name] = {name, rawProduct: r.product, qty:0, subtotal:0, totalcost:0};
     });
   }
 
-  // Add actual sales data
   lines.forEach(r=>{
     const name = cleanProduct(r.product);
     if(!name) return;
-    if(!stats[name]) stats[name] = {name, qty:0, subtotal:0, totalcost:0};
+    if(!stats[name]) stats[name] = {name, rawProduct: r.product, qty:0, subtotal:0, totalcost:0};
+    // Keep rawProduct from line so we have the Odoo product with code if present
+    if(r.product && extractCode(r.product)) stats[name].rawProduct = r.product;
     stats[name].qty       += parseFloat(r.qty)||0;
     stats[name].subtotal  += parseFloat(r.subtotal)||0;
     stats[name].totalcost += parseFloat(r.totalcost)||0;
@@ -665,7 +681,6 @@ function getProductStats() {
 
 function getRepStats() {
   const sales = filteredSales();
-  const lines = filteredLines();
   const stats = {};
   sales.forEach(r=>{
     const name = getRepName(r.rep);
@@ -674,7 +689,6 @@ function getRepStats() {
     stats[name].total  += parseFloat(r.amount)||0;
     stats[name].orders += 1;
   });
-  // Add GP per rep from filtered product lines only
   const prodLinesFiltered = productLines();
   prodLinesFiltered.forEach(r=>{
     const rawId = r.orderid||'';
@@ -691,7 +705,6 @@ function getRepStats() {
   return Object.values(stats);
 }
 
-// Product-only lines — excludes rental, consulting, pallets, freight etc
 function isProductLine(r) {
   const name = cleanProduct(r.product||'').toLowerCase();
   if(!name || name==='false') return false;
@@ -702,6 +715,7 @@ function isProductLine(r) {
 function productLines() {
   return filteredLines().filter(isProductLine);
 }
+
 function renderAll() {
   renderOverview();
   renderReps();
@@ -714,17 +728,16 @@ function renderAll() {
 // ═══════════════════════════════════════
 function renderOverview() {
   const sales   = filteredSales();
-  const lines   = productLines();  // product-only for GP
+  const lines   = productLines();
   const total   = sales.reduce((s,r)=>s+(parseFloat(r.amount)||0),0);
   const sub     = lines.reduce((s,r)=>s+(parseFloat(r.subtotal)||0),0);
   const tc      = lines.reduce((s,r)=>s+(parseFloat(r.totalcost)||0),0);
   const gpVal   = sub - tc;
   const gpPct   = gp(sub, tc);
 
-  const repName = currentUser.role==='admin' ? 'All Reps' : currentUser.name;
-  const tgt     = repTargets[currentUser.role==='admin'?'__all__':currentUser.name];
+  const tgt      = repTargets[currentUser.role==='admin'?'__all__':currentUser.name];
   const salesTgt = tgt?.salesTarget || 0;
-  const p       = pct(total, salesTgt);
+  const p        = pct(total, salesTgt);
 
   document.getElementById('hero-label').textContent = currentUser.role==='admin' ? 'Total Company Sales' : 'My Total Sales';
   document.getElementById('hero-val').textContent   = fmt(total);
@@ -735,13 +748,11 @@ function renderOverview() {
   document.getElementById('hero-pct-lbl').textContent = p+'% of target';
   document.getElementById('hero-target-lbl').textContent = 'Target: '+fmt(salesTgt);
 
-  // Count unique products
   const prods = new Set(lines.map(r=>cleanProduct(r.product)).filter(Boolean));
   document.getElementById('sc-orders').textContent   = sales.length;
   document.getElementById('sc-products').textContent = prods.size;
   document.getElementById('sc-gp').textContent       = gpPct+'%';
 
-  // Product list — top 5 by subtotal
   const prodStats = getProductStats().sort((a,b)=>b.subtotal-a.subtotal).slice(0,5);
   const list = document.getElementById('product-list');
   list.innerHTML='';
@@ -750,7 +761,7 @@ function renderOverview() {
 }
 
 // ═══════════════════════════════════════
-// REPS (ADMIN)
+// REPS
 // ═══════════════════════════════════════
 function renderReps() {
   if(currentUser.role!=='admin') return;
@@ -784,22 +795,10 @@ function renderReps() {
       </div>
       <div class="rh-bottom">
         <div class="rep-stats">
-          <div class="rep-stat">
-            <div class="rv" style="color:var(--accent)">${fmt(rep.total)}</div>
-            <div class="rl">Total Sales</div>
-          </div>
-          <div class="rep-stat">
-            <div class="rv" style="color:${p>=100?'var(--green)':p>=70?'var(--amber)':'var(--red)'}">${p}%</div>
-            <div class="rl">vs Target</div>
-          </div>
-          <div class="rep-stat">
-            <div class="rv" style="color:${repGP>=gpTgt?'var(--green)':'var(--red)'}">${repGP}%</div>
-            <div class="rl">GP%</div>
-          </div>
-          <div class="rep-stat">
-            <div class="rv">${fmt(gpVal).replace('R\u00a0','R')}</div>
-            <div class="rl">GP Value</div>
-          </div>
+          <div class="rep-stat"><div class="rv" style="color:var(--accent)">${fmt(rep.total)}</div><div class="rl">Total Sales</div></div>
+          <div class="rep-stat"><div class="rv" style="color:${p>=100?'var(--green)':p>=70?'var(--amber)':'var(--red)'}">${p}%</div><div class="rl">vs Target</div></div>
+          <div class="rep-stat"><div class="rv" style="color:${repGP>=gpTgt?'var(--green)':'var(--red)'}">${repGP}%</div><div class="rl">GP%</div></div>
+          <div class="rep-stat"><div class="rv">${fmt(gpVal).replace('R\u00a0','R')}</div><div class="rl">GP Value</div></div>
         </div>
         <div class="pbar" style="height:8px">
           <div class="pfill ${fc(p)}" style="width:${cap(p)}%"></div>
@@ -818,9 +817,10 @@ function renderReps() {
 // PRODUCTS
 // ═══════════════════════════════════════
 function buildProductCard(p, mini=false) {
-  const tgt = productTargets[p.name] || {};
-  const unitsTgt  = tgt.unitsTarget  || 0;
-  const salesTgt  = tgt.salesTarget  || 0;
+  // FIX: pass rawProduct so getTargetForProduct can match by code
+  const sheetTgt  = getTargetForProduct(p.name, p.rawProduct);
+  const unitsTgt  = sheetTgt ? sheetTgt.unitsTarget : (productTargets[p.name]?.unitsTarget||0);
+  const salesTgt  = sheetTgt ? sheetTgt.salesTarget  : (productTargets[p.name]?.salesTarget||0);
   const gpTgt     = repTargets[currentUser.role==='admin'?'__all__':currentUser.name]?.gpTarget || 30;
   const gpPct     = gp(p.subtotal, p.totalcost);
   const gpVal     = p.subtotal - p.totalcost;
@@ -861,12 +861,13 @@ function renderProducts() {
 }
 
 function openProductModal(p) {
-  const tgt    = productTargets[p.name]||{};
-  const gpTgt  = repTargets[currentUser.role==='admin'?'__all__':currentUser.name]?.gpTarget||30;
-  const gpPct  = gp(p.subtotal, p.totalcost);
-  const gpVal  = p.subtotal - p.totalcost;
-  const uPct   = pct(p.qty, tgt.unitsTarget||0);
-  const sPct   = pct(p.subtotal, tgt.salesTarget||0);
+  const sheetTgt = getTargetForProduct(p.name, p.rawProduct);
+  const tgt      = sheetTgt || productTargets[p.name] || {};
+  const gpTgt    = repTargets[currentUser.role==='admin'?'__all__':currentUser.name]?.gpTarget||30;
+  const gpPct    = gp(p.subtotal, p.totalcost);
+  const gpVal    = p.subtotal - p.totalcost;
+  const uPct     = pct(p.qty, tgt.unitsTarget||0);
+  const sPct     = pct(p.subtotal, tgt.salesTarget||0);
 
   document.getElementById('modal-title').textContent=p.name;
   document.getElementById('modal-body').innerHTML=`
@@ -885,38 +886,8 @@ function openProductModal(p) {
 }
 
 // ═══════════════════════════════════════
-// TARGETS
+// TARGETS PAGE
 // ═══════════════════════════════════════
-function extractCode(name) {
-  const m = (name||'').match(/\[(\d+)\]/);
-  return m ? m[1] : null;
-}
-
-function getTargetForProduct(productName) {
-  const month = selectedMonth === 'all' ? null : selectedMonth;
-  const code = extractCode(productName);
-  const clean = cleanProduct(productName).toLowerCase();
-
-  const rows = targetRows.filter(r => {
-    if(code && extractCode(r.product) === code) return true;
-    return cleanProduct(r.product).toLowerCase() === clean;
-  });
-
-  if(code === '10019') {
-    console.log('DEBUG spare ribs:', productName, 'code:', code, 'month:', month, 'rows found:', rows.length, rows.slice(0,3));
-  }
-
-  if(!rows.length) return null;
-  if(month) {
-    const row = rows.find(r => r.month === month);
-    if(row) return { unitsTarget: parseFloat(row.unitsTarget)||0, salesTarget: parseFloat(row.salesTarget)||0 };
-  }
-  return {
-    unitsTarget: rows.reduce((s,r)=>s+(parseFloat(r.unitsTarget)||0),0),
-    salesTarget: rows.reduce((s,r)=>s+(parseFloat(r.salesTarget)||0),0)
-  };
-}
-
 function renderTargets() {
   const repKey = currentUser.role==='admin'?'__all__':currentUser.name;
   const t = repTargets[repKey]||{salesTarget:500000,gpTarget:30};
@@ -966,9 +937,10 @@ function renderTargets() {
   }
 
   prods.forEach(p=>{
-    const sheetTgt = getTargetForProduct(p.name);
+    // FIX: pass rawProduct for correct code-based matching
+    const sheetTgt = getTargetForProduct(p.name, p.rawProduct);
     const unitsTgt = sheetTgt ? sheetTgt.unitsTarget : (productTargets[p.name]?.unitsTarget||0);
-    const salesTgt = sheetTgt ? sheetTgt.salesTarget : (productTargets[p.name]?.salesTarget||0);
+    const salesTgt = sheetTgt ? sheetTgt.salesTarget  : (productTargets[p.name]?.salesTarget||0);
     const unitsPct = pct(p.qty, unitsTgt);
     const salesPct = pct(p.subtotal, salesTgt);
     const d = document.createElement('div');
@@ -990,7 +962,6 @@ function saveTargets() {
     salesTarget: parseInt(document.getElementById('my-sales-tgt')?.value)||0,
     gpTarget:    parseInt(document.getElementById('my-gp-tgt')?.value)||30,
   };
-
   if(currentUser.role==='admin'){
     getRepStats().forEach(r=>{
       const k = r.name.replace(/\s/g,'_');
@@ -1034,7 +1005,6 @@ function toast(msg,type='') {
   setTimeout(()=>t.remove(),2800);
 }
 
-// Auto-sync every 15 min
 setInterval(()=>{ if(currentUser) syncAll(); }, 15*60*1000);
 </script>
 </body>
