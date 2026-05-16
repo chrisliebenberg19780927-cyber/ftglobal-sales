@@ -1,0 +1,855 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>FT Global · Sales</title>
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@400;600;700;800;900&family=Barlow:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg:#f0f2f5; --card:#fff; --border:#e2e6ed;
+  --ink:#111827; --ink2:#6b7280; --ink3:#9ca3af;
+  --green:#059669; --green-bg:#d1fae5;
+  --amber:#d97706; --amber-bg:#fef3c7;
+  --red:#dc2626; --red-bg:#fee2e2;
+  --blue:#2563eb; --blue-bg:#dbeafe;
+  --accent:#0f4c81; --accent-light:#e8f0fe;
+  --nav-h:68px; --top-h:60px;
+  --font:'Barlow Condensed',sans-serif;
+  --body:'Barlow',sans-serif;
+}
+*{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent;}
+body{font-family:var(--body);background:var(--bg);color:var(--ink);min-height:100dvh;max-width:480px;margin:0 auto;overflow-x:hidden;}
+
+/* LOGIN */
+.login-screen{
+  min-height:100dvh;display:flex;flex-direction:column;
+  background:linear-gradient(160deg,#0a2a4a 0%,#0f4c81 60%,#1a6fb5 100%);
+  padding:40px 28px 60px;
+}
+.login-logo{margin-bottom:40px;}
+.login-logo .brand{font-family:var(--font);font-size:32px;font-weight:900;color:#fff;letter-spacing:-.5px;}
+.login-logo .brand span{opacity:.5;font-weight:600;}
+.login-logo .tagline{font-size:13px;color:rgba(255,255,255,.5);margin-top:4px;}
+.login-title{font-family:var(--font);font-size:28px;font-weight:900;color:#fff;margin-bottom:6px;}
+.login-sub{font-size:13px;color:rgba(255,255,255,.55);margin-bottom:32px;}
+.login-field{margin-bottom:14px;}
+.login-field label{display:block;font-size:11px;font-weight:700;color:rgba(255,255,255,.6);text-transform:uppercase;letter-spacing:.8px;margin-bottom:6px;}
+.login-field select,.login-field input{
+  width:100%;padding:14px 16px;
+  background:rgba(255,255,255,.1);border:1.5px solid rgba(255,255,255,.2);
+  border-radius:12px;color:#fff;font-family:var(--body);font-size:15px;outline:none;
+  transition:border-color .2s;
+}
+.login-field select option{background:#0f4c81;color:#fff;}
+.login-field input::placeholder{color:rgba(255,255,255,.35);}
+.login-field select:focus,.login-field input:focus{border-color:rgba(255,255,255,.6);}
+.login-btn{
+  width:100%;padding:16px;margin-top:8px;
+  background:#fff;border:none;border-radius:12px;
+  font-family:var(--font);font-size:18px;font-weight:900;color:var(--accent);
+  cursor:pointer;transition:opacity .2s;letter-spacing:.3px;
+}
+.login-btn:active{opacity:.88;}
+.login-error{
+  background:rgba(220,38,38,.2);border:1px solid rgba(220,38,38,.4);
+  border-radius:10px;padding:10px 14px;
+  color:#fca5a5;font-size:13px;text-align:center;margin-top:12px;
+  display:none;
+}
+
+/* TOP BAR */
+.topbar{
+  height:var(--top-h);display:flex;align-items:center;justify-content:space-between;
+  padding:0 18px;background:var(--accent);position:sticky;top:0;z-index:80;
+  box-shadow:0 2px 12px rgba(15,76,129,.25);
+}
+.brand-sm{font-family:var(--font);font-size:18px;font-weight:900;color:#fff;}
+.brand-sm span{opacity:.5;font-weight:600;}
+.topbar-right{display:flex;align-items:center;gap:10px;}
+.user-chip{
+  display:flex;align-items:center;gap:6px;
+  background:rgba(255,255,255,.15);border:1px solid rgba(255,255,255,.25);
+  border-radius:20px;padding:5px 12px;
+  font-family:var(--font);font-size:12px;color:#fff;font-weight:700;
+}
+.sync-btn{
+  background:rgba(255,255,255,.15);border:1px solid rgba(255,255,255,.25);
+  border-radius:20px;padding:6px 12px;color:#fff;
+  font-family:var(--font);font-size:12px;font-weight:700;cursor:pointer;
+}
+.sync-btn svg{width:13px;height:13px;vertical-align:middle;margin-right:3px;}
+.spinning{animation:spin .8s linear infinite;}
+@keyframes spin{to{transform:rotate(360deg);}}
+
+/* NAV */
+.nav{
+  position:fixed;bottom:0;left:50%;transform:translateX(-50%);
+  width:100%;max-width:480px;height:var(--nav-h);
+  display:flex;background:#fff;border-top:1px solid var(--border);
+  box-shadow:0 -4px 20px rgba(0,0,0,.07);z-index:80;
+}
+.nb{
+  flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;
+  gap:3px;background:none;border:none;cursor:pointer;
+  font-family:var(--font);font-size:10px;font-weight:700;
+  color:var(--ink3);letter-spacing:.5px;text-transform:uppercase;transition:color .15s;
+}
+.nb svg{width:22px;height:22px;}
+.nb.active{color:var(--accent);}
+
+/* PAGES */
+.page{display:none;padding:14px 14px calc(var(--nav-h)+14px);animation:up .22s ease both;}
+.page.active{display:block;}
+@keyframes up{from{opacity:0;transform:translateY(8px);}to{opacity:1;transform:none;}}
+
+.sh{font-family:var(--font);font-size:11px;font-weight:800;letter-spacing:1.8px;text-transform:uppercase;color:var(--ink3);margin:18px 0 8px;}
+.sh:first-child{margin-top:0;}
+.last-sync{font-size:11px;color:var(--ink3);text-align:right;margin-bottom:6px;font-family:var(--font);}
+
+/* HERO */
+.hero{background:var(--accent);border-radius:16px;padding:20px;margin-bottom:10px;}
+.hero-label{font-size:11px;color:rgba(255,255,255,.6);font-weight:600;text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px;}
+.hero-val{font-family:var(--font);font-size:40px;font-weight:900;color:#fff;letter-spacing:-2px;line-height:1;}
+.hero-row{display:flex;justify-content:space-between;align-items:center;margin-top:10px;}
+.hero-stat{text-align:center;}
+.hero-stat .v{font-family:var(--font);font-size:20px;font-weight:900;color:#fff;}
+.hero-stat .l{font-size:10px;color:rgba(255,255,255,.55);text-transform:uppercase;letter-spacing:.5px;}
+.hbar{height:7px;background:rgba(255,255,255,.2);border-radius:10px;overflow:hidden;margin-top:14px;}
+.hfill{height:100%;border-radius:10px;background:linear-gradient(90deg,#fff,rgba(255,255,255,.6));transition:width 1.2s cubic-bezier(.4,0,.2,1);}
+
+/* STRIP */
+.strip{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:4px;}
+.sc{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:12px 10px;}
+.sc .sv{font-family:var(--font);font-size:24px;font-weight:900;letter-spacing:-1px;line-height:1;}
+.sc .sl{font-size:10px;color:var(--ink2);font-weight:500;margin-top:3px;}
+
+/* CARDS */
+.card{background:var(--card);border:1px solid var(--border);border-radius:14px;padding:14px 16px;margin-bottom:8px;cursor:pointer;transition:box-shadow .2s;}
+.card:active{box-shadow:0 1px 6px rgba(0,0,0,.08);}
+.card-top{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:10px;gap:8px;}
+.card-name{font-family:var(--font);font-size:15px;font-weight:800;flex:1;line-height:1.2;}
+.card-sub{font-size:10px;color:var(--ink3);margin-top:1px;}
+.badge{flex-shrink:0;padding:3px 10px;border-radius:20px;font-family:var(--font);font-size:12px;font-weight:800;}
+.badge.g{background:var(--green-bg);color:var(--green);}
+.badge.a{background:var(--amber-bg);color:var(--amber);}
+.badge.r{background:var(--red-bg);color:var(--red);}
+.badge.b{background:var(--blue-bg);color:var(--blue);}
+.pbar{height:6px;background:var(--border);border-radius:10px;overflow:hidden;margin-bottom:8px;}
+.pfill{height:100%;border-radius:10px;transition:width 1s cubic-bezier(.4,0,.2,1);}
+.pfill.g{background:linear-gradient(90deg,#10b981,#34d399);}
+.pfill.a{background:linear-gradient(90deg,#f59e0b,#fbbf24);}
+.pfill.r{background:linear-gradient(90deg,#ef4444,#f87171);}
+.card-nums{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:8px;}
+.card-actual{font-family:var(--font);font-size:20px;font-weight:900;letter-spacing:-.5px;}
+.card-target{font-size:11px;color:var(--ink2);}
+.card-foot{display:flex;justify-content:space-between;font-size:11px;color:var(--ink2);}
+
+/* GP PILL */
+.gp-row{display:flex;gap:6px;margin-top:6px;flex-wrap:wrap;}
+.gp-pill{padding:3px 10px;border-radius:20px;font-size:11px;font-weight:700;font-family:var(--font);}
+.gp-pill.g{background:var(--green-bg);color:var(--green);}
+.gp-pill.a{background:var(--amber-bg);color:var(--amber);}
+.gp-pill.r{background:var(--red-bg);color:var(--red);}
+.gp-pill.b{background:var(--blue-bg);color:var(--blue);}
+
+/* REP HERO */
+.rep-hero{background:var(--card);border:1px solid var(--border);border-radius:16px;overflow:hidden;margin-bottom:8px;}
+.rh-top{background:linear-gradient(135deg,var(--accent),#1a6fb5);padding:20px;}
+.rep-av{width:52px;height:52px;border-radius:50%;background:rgba(255,255,255,.2);border:2px solid rgba(255,255,255,.4);display:flex;align-items:center;justify-content:center;font-family:var(--font);font-size:22px;font-weight:900;color:#fff;margin-bottom:10px;}
+.rep-name-h{font-family:var(--font);font-size:22px;font-weight:900;color:#fff;}
+.rep-role{font-size:12px;color:rgba(255,255,255,.6);margin-top:1px;}
+.rh-bottom{padding:16px 20px;}
+.rep-stats{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px;}
+.rep-stat{background:var(--bg);border-radius:10px;padding:12px;}
+.rep-stat .rv{font-family:var(--font);font-size:20px;font-weight:900;letter-spacing:-.5px;}
+.rep-stat .rl{font-size:10px;color:var(--ink3);text-transform:uppercase;letter-spacing:.5px;margin-top:2px;}
+
+/* TARGETS PAGE */
+.tcard{background:var(--card);border:1px solid var(--border);border-radius:14px;overflow:hidden;margin-bottom:10px;}
+.th{padding:12px 16px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;}
+.th-name{font-family:var(--font);font-size:15px;font-weight:800;}
+.tr{display:flex;align-items:center;padding:11px 16px;border-bottom:1px solid var(--border);gap:10px;}
+.tr:last-child{border-bottom:none;}
+.tr label{font-size:12px;color:var(--ink2);flex:1;}
+input[type="number"]{background:var(--bg);border:1.5px solid var(--border);border-radius:10px;padding:8px 12px;font-family:var(--font);font-size:15px;font-weight:700;color:var(--ink);width:120px;outline:none;text-align:right;transition:border-color .2s;}
+input[type="number"]:focus{border-color:var(--accent);background:#fff;}
+
+/* ADMIN PAGE */
+.sgroup{background:var(--card);border:1px solid var(--border);border-radius:14px;overflow:hidden;margin-bottom:10px;}
+.srow{display:flex;flex-direction:column;gap:6px;padding:14px 16px;border-bottom:1px solid var(--border);}
+.srow:last-child{border-bottom:none;}
+.srow label{font-size:11px;font-weight:700;color:var(--ink3);text-transform:uppercase;letter-spacing:.5px;}
+.srow input[type="text"],.srow input[type="password"]{background:var(--bg);border:1.5px solid var(--border);border-radius:10px;padding:10px 14px;font-family:var(--body);font-size:14px;color:var(--ink);width:100%;outline:none;transition:border-color .2s;}
+.srow input[type="text"]:focus,.srow input[type="password"]:focus{border-color:var(--accent);background:#fff;}
+
+.btn{width:100%;padding:14px;border-radius:12px;border:none;font-family:var(--font);font-size:16px;font-weight:800;cursor:pointer;transition:opacity .15s;}
+.btn-primary{background:var(--accent);color:#fff;}
+.btn-outline{background:transparent;color:var(--accent);border:1.5px solid var(--accent);}
+.btn-danger{background:var(--red-bg);color:var(--red);border:1px solid var(--red);}
+.btn:active{opacity:.88;}
+
+/* MODAL */
+.overlay{position:fixed;inset:0;background:rgba(0,0,0,.5);backdrop-filter:blur(3px);z-index:200;display:flex;align-items:flex-end;justify-content:center;}
+.modal{width:100%;max-width:480px;background:#fff;border-radius:22px 22px 0 0;padding:10px 20px 40px;animation:mup .28s cubic-bezier(.4,0,.2,1);}
+@keyframes mup{from{transform:translateY(100%);}to{transform:none;}}
+.mhandle{width:38px;height:4px;background:var(--border);border-radius:2px;margin:0 auto 18px;}
+.mtitle{font-family:var(--font);font-size:22px;font-weight:900;margin-bottom:16px;}
+.mstat{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:14px;}
+.mstat-item{background:var(--bg);border-radius:12px;padding:14px;}
+.mstat-item .mv{font-family:var(--font);font-size:20px;font-weight:900;}
+.mstat-item .ml{font-size:10px;color:var(--ink3);text-transform:uppercase;letter-spacing:.5px;margin-top:2px;}
+
+/* TOAST */
+.toast{position:fixed;top:calc(var(--top-h)+12px);left:50%;transform:translateX(-50%);background:var(--ink);color:#fff;padding:10px 22px;border-radius:20px;font-size:13px;font-weight:600;z-index:500;pointer-events:none;animation:tin .25s ease both;white-space:nowrap;}
+.toast.ok{background:var(--green);}
+.toast.err{background:var(--red);}
+@keyframes tin{from{opacity:0;transform:translate(-50%,-8px);}to{opacity:1;transform:translate(-50%,0);}}
+
+.empty{text-align:center;padding:40px 20px;color:var(--ink3);}
+.empty p{font-size:14px;margin-top:8px;}
+
+/* REP TABS */
+.rep-tabs{display:flex;gap:6px;overflow-x:auto;padding-bottom:2px;scrollbar-width:none;margin-bottom:8px;}
+.rep-tabs::-webkit-scrollbar{display:none;}
+.rtab{flex-shrink:0;padding:7px 16px;border-radius:20px;border:1.5px solid var(--border);background:var(--card);font-family:var(--font);font-size:13px;font-weight:700;cursor:pointer;color:var(--ink2);transition:all .15s;white-space:nowrap;}
+.rtab.active{background:var(--accent);border-color:var(--accent);color:#fff;}
+
+.divider{height:1px;background:var(--border);margin:16px 0;}
+</style>
+</head>
+<body>
+
+<!-- ══════════════════════════════════
+     LOGIN SCREEN
+══════════════════════════════════ -->
+<div id="login-screen" class="login-screen">
+  <div class="login-logo">
+    <div class="brand">FT<span>Global</span></div>
+    <div class="tagline">Sales Performance Dashboard</div>
+  </div>
+  <div style="flex:1"></div>
+  <div class="login-title">Welcome back</div>
+  <div class="login-sub">Sign in to view your sales data</div>
+  <div class="login-field">
+    <label>Select Your Name</label>
+    <select id="login-name">
+      <option value="">— Choose name —</option>
+      <option value="admin">Admin (Chris Liebenberg)</option>
+      <option value="Chris Liebenberg">Chris Liebenberg</option>
+      <option value="Lynn Moore">Lynn Moore</option>
+    </select>
+  </div>
+  <div class="login-field">
+    <label>Password</label>
+    <input type="password" id="login-pass" placeholder="Enter your password">
+  </div>
+  <button class="login-btn" onclick="doLogin()">Sign In →</button>
+  <div class="login-error" id="login-error">Incorrect password. Please try again.</div>
+</div>
+
+<!-- ══════════════════════════════════
+     MAIN APP
+══════════════════════════════════ -->
+<div id="main-app" style="display:none">
+
+<!-- TOP BAR -->
+<header class="topbar">
+  <div class="brand-sm">FT<span>Global</span></div>
+  <div class="topbar-right">
+    <div class="user-chip" id="user-chip">—</div>
+    <button class="sync-btn" onclick="syncAll()">
+      <svg id="sync-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M23 4v6h-6M1 20v-6h6"/><path d="M3.51 9a9 9 0 0114.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0020.49 15"/></svg>
+      Sync
+    </button>
+  </div>
+</header>
+
+<!-- PAGE: OVERVIEW -->
+<section id="page-overview" class="page active">
+  <div class="last-sync" id="sync-label">Not synced yet</div>
+  <div class="hero" id="hero-card">
+    <div class="hero-label" id="hero-label">My Total Sales</div>
+    <div class="hero-val" id="hero-val">R 0</div>
+    <div class="hero-row">
+      <div class="hero-stat"><div class="v" id="hero-pct">0%</div><div class="l">of Target</div></div>
+      <div class="hero-stat"><div class="v" id="hero-gp">0%</div><div class="l">GP%</div></div>
+      <div class="hero-stat"><div class="v" id="hero-gp-val">R0</div><div class="l">GP Value</div></div>
+    </div>
+    <div class="hbar"><div class="hfill" id="hero-bar" style="width:0%"></div></div>
+    <div style="display:flex;justify-content:space-between;font-size:11px;color:rgba(255,255,255,.55);margin-top:6px">
+      <span id="hero-pct-lbl">0% achieved</span>
+      <span id="hero-target-lbl">Target: R 0</span>
+    </div>
+  </div>
+
+  <div class="strip">
+    <div class="sc"><div class="sv" id="sc-orders" style="color:var(--accent)">0</div><div class="sl">Orders</div></div>
+    <div class="sc"><div class="sv" id="sc-products" style="color:var(--green)">0</div><div class="sl">Products</div></div>
+    <div class="sc"><div class="sv" id="sc-gp" style="color:var(--amber)">0%</div><div class="sl">Overall GP</div></div>
+  </div>
+
+  <div class="sh">Top Products</div>
+  <div id="product-list"></div>
+</section>
+
+<!-- PAGE: REPS (ADMIN ONLY) -->
+<section id="page-reps" class="page">
+  <div class="sh">Sales Representatives</div>
+  <div class="rep-tabs" id="rep-tabs"></div>
+  <div id="rep-detail"></div>
+</section>
+
+<!-- PAGE: PRODUCTS -->
+<section id="page-products" class="page">
+  <div class="sh">All Products vs Target</div>
+  <div id="all-products-list"></div>
+</section>
+
+<!-- PAGE: TARGETS -->
+<section id="page-targets" class="page">
+  <div class="sh">My Monthly Target</div>
+  <div id="target-section"></div>
+
+  <div class="sh" id="product-targets-heading">Product Targets</div>
+  <div id="product-target-list"></div>
+
+  <div style="margin-top:4px">
+    <button class="btn btn-primary" onclick="saveTargets()">Save Targets</button>
+  </div>
+
+  <div class="divider"></div>
+  <button class="btn btn-danger" onclick="doLogout()" style="margin-top:0">Sign Out</button>
+</section>
+
+<!-- BOTTOM NAV -->
+<nav class="nav" id="main-nav">
+  <button class="nb active" id="nb-overview" onclick="goPage('overview',this)">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg>
+    Overview
+  </button>
+  <button class="nb" id="nb-reps" onclick="goPage('reps',this)" style="display:none">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="9" cy="7" r="4"/><path d="M3 21v-2a4 4 0 014-4h4a4 4 0 014 4v2"/><path d="M16 3.13a4 4 0 010 7.75M21 21v-2a4 4 0 00-3-3.85"/></svg>
+    Reps
+  </button>
+  <button class="nb" id="nb-products" onclick="goPage('products',this)">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 7H4a2 2 0 00-2 2v10a2 2 0 002 2h16a2 2 0 002-2V9a2 2 0 00-2-2z"/><path d="M16 7V5a2 2 0 00-2-2h-4a2 2 0 00-2 2v2"/></svg>
+    Products
+  </button>
+  <button class="nb" id="nb-targets" onclick="goPage('targets',this)">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2"/></svg>
+    Targets
+  </button>
+</nav>
+
+</div><!-- end main-app -->
+
+<!-- MODAL -->
+<div class="overlay" id="modal" style="display:none" onclick="if(event.target===this)this.style.display='none'">
+  <div class="modal">
+    <div class="mhandle"></div>
+    <div class="mtitle" id="modal-title"></div>
+    <div id="modal-body"></div>
+  </div>
+</div>
+
+<script>
+// ═══════════════════════════════════════
+// CONFIG
+// ═══════════════════════════════════════
+const SHEET_ID = '2PACX-1vTM3RGvAzvyfYXO0XMYHD2AqHl9tY32mEPXEkqDZwVNeArhVNnLp2du0YF-2WpN9SPqT21B3Q0455xJ';
+const SALES_CSV = `https://docs.google.com/spreadsheets/d/e/${SHEET_ID}/pub?output=csv&gid=0`;
+const LINES_CSV = `https://docs.google.com/spreadsheets/d/e/${SHEET_ID}/pub?output=csv&gid=838793323`;
+
+// Users — add more reps here
+const USERS = {
+  'admin':            { password:'Cloe50.',  role:'admin',  name:'Chris Liebenberg' },
+  'Chris Liebenberg': { password:'James',    role:'rep',    name:'Chris Liebenberg' },
+  'Lynn Moore':       { password:'James',    role:'rep',    name:'Lynn Moore' },
+};
+
+// ═══════════════════════════════════════
+// STATE
+// ═══════════════════════════════════════
+let currentUser = null;
+let salesRows = [];   // from Sales tab
+let lineRows  = [];   // from Lines tab
+let selectedRep = null;
+
+// Targets stored locally
+let repTargets = JSON.parse(localStorage.getItem('ftg_rep_targets')||'{}');
+// { repName: { salesTarget: 500000, gpTarget: 30 } }
+let productTargets = JSON.parse(localStorage.getItem('ftg_prod_targets')||'{}');
+// { productName: { unitsTarget: 100, salesTarget: 50000 } }
+
+// ═══════════════════════════════════════
+// HELPERS
+// ═══════════════════════════════════════
+const fmt  = n => 'R\u00a0'+Number(n||0).toLocaleString('en-ZA',{minimumFractionDigits:0,maximumFractionDigits:0});
+const fmtN = n => Number(n||0).toLocaleString('en-ZA',{minimumFractionDigits:0,maximumFractionDigits:0});
+const pct  = (a,t) => t>0 ? Math.round(a/t*100) : 0;
+const cap  = v => Math.min(v,100);
+const fc   = p => p>=100?'g':p>=70?'a':'r';
+const bl   = p => p>=100?'✓ Hit':p>=70?'~ Close':'✗ Behind';
+const initials = name => name.split(' ').map(w=>w[0]?.toUpperCase()).join('').slice(0,2)||'??';
+const cleanName = s => {
+  // Remove "ID, " prefix like "105, S00105" → "S00105"
+  if(!s) return '';
+  const m = s.match(/^\d+,\s*(.+)$/);
+  return m ? m[1] : s;
+};
+const cleanProduct = s => {
+  // Remove "[10019] " prefix
+  if(!s) return '';
+  return s.replace(/^\d+,\s*\[\d+\]\s*/,'').replace(/^\[\d+\]\s*/,'').trim();
+};
+
+function gp(subtotal, totalCost) {
+  if(!subtotal || subtotal<=0) return 0;
+  return Math.round((subtotal-totalCost)/subtotal*100*10)/10;
+}
+
+// ═══════════════════════════════════════
+// LOGIN
+// ═══════════════════════════════════════
+function doLogin() {
+  const nameKey = document.getElementById('login-name').value;
+  const pass    = document.getElementById('login-pass').value;
+  const err     = document.getElementById('login-error');
+  err.style.display='none';
+
+  if(!nameKey){ err.textContent='Please select your name.'; err.style.display='block'; return; }
+  const user = USERS[nameKey];
+  if(!user || user.password !== pass){
+    err.textContent='Incorrect password. Please try again.';
+    err.style.display='block';
+    return;
+  }
+  currentUser = { ...user, key: nameKey };
+  document.getElementById('login-screen').style.display='none';
+  document.getElementById('main-app').style.display='block';
+  document.getElementById('user-chip').textContent = currentUser.role==='admin' ? '⚡ Admin' : currentUser.name.split(' ')[0];
+
+  // Show/hide reps tab
+  const repBtn = document.getElementById('nb-reps');
+  repBtn.style.display = currentUser.role==='admin' ? 'flex' : 'none';
+
+  selectedRep = currentUser.role==='admin' ? null : currentUser.name;
+  syncAll();
+}
+
+document.getElementById('login-pass').addEventListener('keyup', e => { if(e.key==='Enter') doLogin(); });
+
+function doLogout() {
+  currentUser = null;
+  salesRows=[]; lineRows=[];
+  document.getElementById('main-app').style.display='none';
+  document.getElementById('login-screen').style.display='flex';
+  document.getElementById('login-name').value='';
+  document.getElementById('login-pass').value='';
+  goPage('overview', document.getElementById('nb-overview'));
+}
+
+// ═══════════════════════════════════════
+// SYNC
+// ═══════════════════════════════════════
+async function syncAll() {
+  const icon = document.getElementById('sync-icon');
+  icon.classList.add('spinning');
+  toast('Syncing…');
+  try {
+    const [s, l] = await Promise.all([fetchCSV(SALES_CSV), fetchCSV(LINES_CSV)]);
+    salesRows = parseCSV(s, ['date','order','rep','','amount','orderid']);
+    lineRows  = parseCSV(l, ['orderid','product','qty','subtotal','cost','totalcost']);
+    document.getElementById('sync-label').textContent =
+      'Synced: '+new Date().toLocaleTimeString('en-ZA',{hour:'2-digit',minute:'2-digit'});
+    renderAll();
+    toast('Synced ✓','ok');
+  } catch(e) {
+    toast('Sync failed','err');
+    console.error(e);
+  } finally { icon.classList.remove('spinning'); }
+}
+
+async function fetchCSV(url) {
+  const r = await fetch(url);
+  if(!r.ok) throw new Error('HTTP '+r.status);
+  return r.text();
+}
+
+function parseCSV(csv, keys) {
+  const lines = csv.trim().split('\n');
+  const rows = [];
+  for(let i=1;i<lines.length;i++){
+    const cols = splitCSVLine(lines[i]);
+    if(cols.length<2) continue;
+    const row = {};
+    keys.forEach((k,j)=>{ if(k) row[k] = (cols[j]||'').trim().replace(/^"|"$/g,''); });
+    rows.push(row);
+  }
+  return rows;
+}
+
+function splitCSVLine(line) {
+  const result=[]; let cur=''; let inQ=false;
+  for(let i=0;i<line.length;i++){
+    if(line[i]==='"'){inQ=!inQ;}
+    else if(line[i]===',' && !inQ){result.push(cur);cur='';}
+    else{cur+=line[i];}
+  }
+  result.push(cur);
+  return result;
+}
+
+// ═══════════════════════════════════════
+// DATA ACCESSORS
+// ═══════════════════════════════════════
+function getRepName(raw) {
+  // raw could be "2, Chris Liebenberg2" → extract name
+  if(!raw) return 'Unknown';
+  const m = raw.match(/,\s*(.+?)(\d*)$/);
+  if(m) return m[1].trim();
+  return raw;
+}
+
+function filteredSales() {
+  if(currentUser.role==='admin') return salesRows;
+  return salesRows.filter(r => {
+    const rn = getRepName(r.rep);
+    return rn === currentUser.name || r.rep.includes(currentUser.name);
+  });
+}
+
+function filteredLines() {
+  if(currentUser.role==='admin') return lineRows;
+  // Filter lines by order IDs that belong to this rep
+  const myOrderIds = new Set(filteredSales().map(r=>r.orderid));
+  return lineRows.filter(r => myOrderIds.has(r.orderid));
+}
+
+function getProductStats() {
+  const lines = filteredLines();
+  const stats = {};
+  lines.forEach(r=>{
+    const name = cleanProduct(r.product);
+    if(!name || name==='FALSE' || name.toLowerCase().includes('consulting') || name.toLowerCase().includes('rent') || name.toLowerCase().includes('pallet')) return;
+    if(!stats[name]) stats[name] = {name, qty:0, subtotal:0, totalcost:0};
+    stats[name].qty       += parseFloat(r.qty)||0;
+    stats[name].subtotal  += parseFloat(r.subtotal)||0;
+    stats[name].totalcost += parseFloat(r.totalcost)||0;
+  });
+  return Object.values(stats);
+}
+
+function getRepStats() {
+  const stats = {};
+  salesRows.forEach(r=>{
+    const name = getRepName(r.rep);
+    if(!name || name==='Unknown') return;
+    if(!stats[name]) stats[name] = {name, total:0, orders:0};
+    stats[name].total  += parseFloat(r.amount)||0;
+    stats[name].orders += 1;
+  });
+  // Add GP per rep from lines
+  lineRows.forEach(r=>{
+    // find which rep owns this order
+    const sale = salesRows.find(s=>s.orderid===r.orderid);
+    if(!sale) return;
+    const name = getRepName(sale.rep);
+    if(!stats[name]) return;
+    if(!stats[name].subtotal) stats[name].subtotal=0;
+    if(!stats[name].totalcost) stats[name].totalcost=0;
+    stats[name].subtotal  += parseFloat(r.subtotal)||0;
+    stats[name].totalcost += parseFloat(r.totalcost)||0;
+  });
+  return Object.values(stats);
+}
+
+// ═══════════════════════════════════════
+// RENDER ALL
+// ═══════════════════════════════════════
+function renderAll() {
+  renderOverview();
+  renderReps();
+  renderProducts();
+  renderTargets();
+}
+
+// ═══════════════════════════════════════
+// OVERVIEW
+// ═══════════════════════════════════════
+function renderOverview() {
+  const sales   = filteredSales();
+  const lines   = filteredLines();
+  const total   = sales.reduce((s,r)=>s+(parseFloat(r.amount)||0),0);
+  const sub     = lines.reduce((s,r)=>s+(parseFloat(r.subtotal)||0),0);
+  const tc      = lines.reduce((s,r)=>s+(parseFloat(r.totalcost)||0),0);
+  const gpVal   = sub - tc;
+  const gpPct   = gp(sub, tc);
+
+  const repName = currentUser.role==='admin' ? 'All Reps' : currentUser.name;
+  const tgt     = repTargets[currentUser.role==='admin'?'__all__':currentUser.name];
+  const salesTgt = tgt?.salesTarget || 0;
+  const p       = pct(total, salesTgt);
+
+  document.getElementById('hero-label').textContent = currentUser.role==='admin' ? 'Total Company Sales' : 'My Total Sales';
+  document.getElementById('hero-val').textContent   = fmt(total);
+  document.getElementById('hero-pct').textContent   = p+'%';
+  document.getElementById('hero-gp').textContent    = gpPct+'%';
+  document.getElementById('hero-gp-val').textContent= fmt(gpVal).replace('R\u00a0','R');
+  document.getElementById('hero-bar').style.width   = cap(p)+'%';
+  document.getElementById('hero-pct-lbl').textContent = p+'% of target';
+  document.getElementById('hero-target-lbl').textContent = 'Target: '+fmt(salesTgt);
+
+  // Count unique products
+  const prods = new Set(lines.map(r=>cleanProduct(r.product)).filter(Boolean));
+  document.getElementById('sc-orders').textContent   = sales.length;
+  document.getElementById('sc-products').textContent = prods.size;
+  document.getElementById('sc-gp').textContent       = gpPct+'%';
+
+  // Product list — top 5 by subtotal
+  const prodStats = getProductStats().sort((a,b)=>b.subtotal-a.subtotal).slice(0,5);
+  const list = document.getElementById('product-list');
+  list.innerHTML='';
+  if(!prodStats.length){ list.innerHTML='<div class="empty"><p>Sync to load product data</p></div>'; return; }
+  prodStats.forEach(p=>{ list.appendChild(buildProductCard(p,true)); });
+}
+
+// ═══════════════════════════════════════
+// REPS (ADMIN)
+// ═══════════════════════════════════════
+function renderReps() {
+  if(currentUser.role!=='admin') return;
+  const repStats = getRepStats();
+  const tabs = document.getElementById('rep-tabs');
+  tabs.innerHTML='';
+  if(!repStats.length){ document.getElementById('rep-detail').innerHTML='<div class="empty"><p>No rep data</p></div>'; return; }
+  if(!selectedRep) selectedRep = repStats[0]?.name;
+  repStats.forEach(r=>{
+    const t=document.createElement('div');
+    t.className='rtab'+(r.name===selectedRep?' active':'');
+    t.textContent=r.name.split(' ')[0];
+    t.onclick=()=>{selectedRep=r.name;renderReps();};
+    tabs.appendChild(t);
+  });
+  const rep = repStats.find(r=>r.name===selectedRep);
+  if(!rep) return;
+  const tgt = repTargets[selectedRep];
+  const salesTgt = tgt?.salesTarget||500000;
+  const gpTgt    = tgt?.gpTarget||30;
+  const p = pct(rep.total, salesTgt);
+  const repGP = gp(rep.subtotal||0, rep.totalcost||0);
+  const gpVal = (rep.subtotal||0)-(rep.totalcost||0);
+
+  document.getElementById('rep-detail').innerHTML=`
+    <div class="rep-hero">
+      <div class="rh-top">
+        <div class="rep-av">${initials(rep.name)}</div>
+        <div class="rep-name-h">${rep.name}</div>
+        <div class="rep-role">Sales Representative · ${rep.orders} orders</div>
+      </div>
+      <div class="rh-bottom">
+        <div class="rep-stats">
+          <div class="rep-stat">
+            <div class="rv" style="color:var(--accent)">${fmt(rep.total)}</div>
+            <div class="rl">Total Sales</div>
+          </div>
+          <div class="rep-stat">
+            <div class="rv" style="color:${p>=100?'var(--green)':p>=70?'var(--amber)':'var(--red)'}">${p}%</div>
+            <div class="rl">vs Target</div>
+          </div>
+          <div class="rep-stat">
+            <div class="rv" style="color:${repGP>=gpTgt?'var(--green)':'var(--red)'}">${repGP}%</div>
+            <div class="rl">GP%</div>
+          </div>
+          <div class="rep-stat">
+            <div class="rv">${fmt(gpVal).replace('R\u00a0','R')}</div>
+            <div class="rl">GP Value</div>
+          </div>
+        </div>
+        <div class="pbar" style="height:8px">
+          <div class="pfill ${fc(p)}" style="width:${cap(p)}%"></div>
+        </div>
+        <div style="display:flex;justify-content:space-between;font-size:11px;color:var(--ink2);margin-top:6px">
+          <span>Target: ${fmt(salesTgt)}</span>
+          <span style="color:${p>=100?'var(--green)':p>=70?'var(--amber)':'var(--red)'};font-weight:700">
+            ${p>=100?'🎉 Hit!':fmt(salesTgt-rep.total)+' to go'}
+          </span>
+        </div>
+      </div>
+    </div>`;
+}
+
+// ═══════════════════════════════════════
+// PRODUCTS
+// ═══════════════════════════════════════
+function buildProductCard(p, mini=false) {
+  const tgt = productTargets[p.name] || {};
+  const unitsTgt  = tgt.unitsTarget  || 0;
+  const salesTgt  = tgt.salesTarget  || 0;
+  const gpTgt     = repTargets[currentUser.role==='admin'?'__all__':currentUser.name]?.gpTarget || 30;
+  const gpPct     = gp(p.subtotal, p.totalcost);
+  const gpVal     = p.subtotal - p.totalcost;
+  const unitsPct  = pct(p.qty, unitsTgt);
+  const salesPct  = pct(p.subtotal, salesTgt);
+
+  const div = document.createElement('div');
+  div.className='card';
+  div.innerHTML=`
+    <div class="card-top">
+      <div>
+        <div class="card-name">${p.name}</div>
+        <div class="card-sub">${fmtN(p.qty)} units · ${fmt(p.subtotal)}</div>
+      </div>
+      <div class="badge ${fc(salesPct)}">${salesPct>0?salesPct+'%':'—'}</div>
+    </div>
+    ${salesTgt>0?`
+    <div class="pbar"><div class="pfill ${fc(salesPct)}" style="width:${cap(salesPct)}%"></div></div>
+    <div class="card-foot">
+      <span>${fmt(p.subtotal)} of ${fmt(salesTgt)}</span>
+      <span>${salesPct>=100?'🎉 Hit!':fmt(salesTgt-p.subtotal)+' to go'}</span>
+    </div>`:''}
+    <div class="gp-row">
+      <div class="gp-pill ${gpPct>=gpTgt?'g':'r'}">GP: ${gpPct}%</div>
+      <div class="gp-pill b">GP Value: ${fmt(gpVal)}</div>
+      ${unitsTgt>0?`<div class="gp-pill ${fc(unitsPct)}">${fmtN(p.qty)}/${fmtN(unitsTgt)} units</div>`:''}
+    </div>`;
+  div.onclick = () => openProductModal(p);
+  return div;
+}
+
+function renderProducts() {
+  const list = document.getElementById('all-products-list');
+  list.innerHTML='';
+  const prods = getProductStats().sort((a,b)=>b.subtotal-a.subtotal);
+  if(!prods.length){ list.innerHTML='<div class="empty"><p>Sync to load product data</p></div>'; return; }
+  prods.forEach(p=>list.appendChild(buildProductCard(p)));
+}
+
+function openProductModal(p) {
+  const tgt    = productTargets[p.name]||{};
+  const gpTgt  = repTargets[currentUser.role==='admin'?'__all__':currentUser.name]?.gpTarget||30;
+  const gpPct  = gp(p.subtotal, p.totalcost);
+  const gpVal  = p.subtotal - p.totalcost;
+  const uPct   = pct(p.qty, tgt.unitsTarget||0);
+  const sPct   = pct(p.subtotal, tgt.salesTarget||0);
+
+  document.getElementById('modal-title').textContent=p.name;
+  document.getElementById('modal-body').innerHTML=`
+    <div class="mstat">
+      <div class="mstat-item"><div class="mv" style="color:var(--accent)">${fmt(p.subtotal)}</div><div class="ml">Sales Value</div></div>
+      <div class="mstat-item"><div class="mv">${fmtN(p.qty)}</div><div class="ml">Units Sold</div></div>
+      <div class="mstat-item"><div class="mv" style="color:${gpPct>=gpTgt?'var(--green)':'var(--red)'}">${gpPct}%</div><div class="ml">GP% (Target ${gpTgt}%)</div></div>
+      <div class="mstat-item"><div class="mv">${fmt(gpVal)}</div><div class="ml">GP Value</div></div>
+    </div>
+    ${tgt.salesTarget?`<div class="pbar" style="height:8px;margin-bottom:6px"><div class="pfill ${fc(sPct)}" style="width:${cap(sPct)}%"></div></div>
+    <div style="font-size:12px;color:var(--ink2);margin-bottom:12px">Sales: ${sPct}% of ${fmt(tgt.salesTarget)} target</div>`:''}
+    ${tgt.unitsTarget?`<div class="pbar" style="height:8px;margin-bottom:6px"><div class="pfill ${fc(uPct)}" style="width:${cap(uPct)}%"></div></div>
+    <div style="font-size:12px;color:var(--ink2)">Units: ${fmtN(p.qty)} of ${fmtN(tgt.unitsTarget)} target</div>`:''}
+    <div style="font-size:11px;color:var(--ink3);text-align:center;margin-top:16px">Tap outside to close</div>`;
+  document.getElementById('modal').style.display='flex';
+}
+
+// ═══════════════════════════════════════
+// TARGETS
+// ═══════════════════════════════════════
+function renderTargets() {
+  // My sales target
+  const repKey = currentUser.role==='admin'?'__all__':currentUser.name;
+  const t = repTargets[repKey]||{salesTarget:500000,gpTarget:30};
+  document.getElementById('target-section').innerHTML=`
+    <div class="tcard">
+      <div class="th"><span class="th-name">${currentUser.role==='admin'?'Company Target':'My Target'}</span></div>
+      <div class="tr"><label>Monthly Sales Target (R)</label><input type="number" id="my-sales-tgt" value="${t.salesTarget||500000}" min="0" step="10000"></div>
+      <div class="tr"><label>GP% Target</label><input type="number" id="my-gp-tgt" value="${t.gpTarget||30}" min="0" max="100" step="1"></div>
+    </div>`;
+
+  // Admin: show rep targets too
+  if(currentUser.role==='admin'){
+    document.getElementById('product-targets-heading').textContent='Rep Targets';
+    const repStats = getRepStats();
+    const repSection = document.getElementById('product-target-list');
+    repSection.innerHTML='';
+    const card = document.createElement('div');
+    card.className='tcard';
+    repStats.forEach(r=>{
+      const rt = repTargets[r.name]||{salesTarget:500000,gpTarget:30};
+      card.innerHTML+=`
+        <div class="th"><span class="th-name">${r.name}</span><span style="font-size:11px;color:var(--ink3)">${fmt(r.total)} actual</span></div>
+        <div class="tr"><label>Sales Target (R)</label><input type="number" id="rept-${r.name.replace(/\s/g,'_')}" value="${rt.salesTarget||500000}" min="0" step="10000"></div>
+        <div class="tr"><label>GP% Target</label><input type="number" id="repg-${r.name.replace(/\s/g,'_')}" value="${rt.gpTarget||30}" min="0" max="100" step="1"></div>`;
+    });
+    repSection.appendChild(card);
+  } else {
+    document.getElementById('product-targets-heading').textContent='Product Targets';
+    const prods = getProductStats();
+    const list = document.getElementById('product-target-list');
+    list.innerHTML='';
+    prods.forEach(p=>{
+      const pt = productTargets[p.name]||{};
+      const d=document.createElement('div');
+      d.className='tcard';
+      d.innerHTML=`
+        <div class="th"><span class="th-name">${p.name}</span></div>
+        <div class="tr"><label>Units Target (per month)</label><input type="number" id="pu-${p.name.replace(/\s/g,'_').slice(0,20)}" value="${pt.unitsTarget||0}" min="0" step="10"></div>
+        <div class="tr"><label>Sales Target (R)</label><input type="number" id="ps-${p.name.replace(/\s/g,'_').slice(0,20)}" value="${pt.salesTarget||0}" min="0" step="1000"></div>`;
+      list.appendChild(d);
+    });
+  }
+}
+
+function saveTargets() {
+  const repKey = currentUser.role==='admin'?'__all__':currentUser.name;
+  repTargets[repKey] = {
+    salesTarget: parseInt(document.getElementById('my-sales-tgt')?.value)||0,
+    gpTarget:    parseInt(document.getElementById('my-gp-tgt')?.value)||30,
+  };
+
+  if(currentUser.role==='admin'){
+    getRepStats().forEach(r=>{
+      const k = r.name.replace(/\s/g,'_');
+      const se = document.getElementById('rept-'+k);
+      const ge = document.getElementById('repg-'+k);
+      if(se||ge) repTargets[r.name]={salesTarget:parseInt(se?.value)||500000,gpTarget:parseInt(ge?.value)||30};
+    });
+  } else {
+    getProductStats().forEach(p=>{
+      const k = p.name.replace(/\s/g,'_').slice(0,20);
+      const ue=document.getElementById('pu-'+k);
+      const se=document.getElementById('ps-'+k);
+      if(ue||se) productTargets[p.name]={unitsTarget:parseInt(ue?.value)||0,salesTarget:parseInt(se?.value)||0};
+    });
+  }
+  localStorage.setItem('ftg_rep_targets', JSON.stringify(repTargets));
+  localStorage.setItem('ftg_prod_targets', JSON.stringify(productTargets));
+  renderAll();
+  toast('Targets saved ✓','ok');
+}
+
+// ═══════════════════════════════════════
+// NAV & UTILS
+// ═══════════════════════════════════════
+function goPage(id,btn) {
+  document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
+  document.querySelectorAll('.nb').forEach(b=>b.classList.remove('active'));
+  document.getElementById('page-'+id).classList.add('active');
+  btn.classList.add('active');
+  if(id==='reps')     renderReps();
+  if(id==='products') renderProducts();
+  if(id==='targets')  renderTargets();
+}
+
+function toast(msg,type='') {
+  document.querySelectorAll('.toast').forEach(t=>t.remove());
+  const t=document.createElement('div');
+  t.className='toast'+(type?' '+type:'');
+  t.textContent=msg;
+  document.body.appendChild(t);
+  setTimeout(()=>t.remove(),2800);
+}
+
+// Auto-sync every 15 min
+setInterval(()=>{ if(currentUser) syncAll(); }, 15*60*1000);
+</script>
+</body>
+</html>
