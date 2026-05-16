@@ -368,8 +368,9 @@ input[type="number"]:focus{border-color:var(--accent);background:#fff;}
 // CONFIG
 // ═══════════════════════════════════════
 const SHEET_ID = '2PACX-1vTM3RGvAzvyfYXO0XMYHD2AqHl9tY32mEPXEkqDZwVNeArhVNnLp2du0YF-2WpN9SPqT21B3Q0455xJ';
-const SALES_CSV = `https://docs.google.com/spreadsheets/d/e/${SHEET_ID}/pub?output=csv&gid=0`;
-const LINES_CSV = `https://docs.google.com/spreadsheets/d/e/${SHEET_ID}/pub?output=csv&gid=838793323`;
+const SALES_CSV   = `https://docs.google.com/spreadsheets/d/e/${SHEET_ID}/pub?output=csv&gid=0`;
+const LINES_CSV   = `https://docs.google.com/spreadsheets/d/e/${SHEET_ID}/pub?output=csv&gid=838793323`;
+const TARGETS_CSV = `https://docs.google.com/spreadsheets/d/e/${SHEET_ID}/pub?gid=715610899&single=true&output=csv`;
 
 // Users — add more reps here
 const USERS = {
@@ -382,11 +383,12 @@ const USERS = {
 // STATE
 // ═══════════════════════════════════════
 let currentUser = null;
-let salesRows = [];   // from Sales tab
-let lineRows  = [];   // from Lines tab
+let salesRows = [];
+let lineRows  = [];
+let targetRows = []; // from Targets tab
 let selectedRep = null;
-let selectedMonth = 'all'; // 'all' or 'YYYY-MM'
-let selectedAdminRep = null; // for admin rep filter
+let selectedMonth = 'all';
+let selectedAdminRep = null;
 
 // Targets stored locally
 let repTargets = JSON.parse(localStorage.getItem('ftg_rep_targets')||'{}');
@@ -470,9 +472,10 @@ async function syncAll() {
   icon.classList.add('spinning');
   toast('Syncing…');
   try {
-    const [s, l] = await Promise.all([fetchCSV(SALES_CSV), fetchCSV(LINES_CSV)]);
-    salesRows = parseCSV(s, ['date','order','rep','','amount','orderid']);
-    lineRows  = parseCSV(l, ['orderid','product','qty','subtotal','cost','totalcost']);
+    const [s, l, t] = await Promise.all([fetchCSV(SALES_CSV), fetchCSV(LINES_CSV), fetchCSV(TARGETS_CSV)]);
+    salesRows  = parseCSV(s, ['date','order','rep','','amount','orderid']);
+    lineRows   = parseCSV(l, ['orderid','product','qty','subtotal','cost','totalcost']);
+    targetRows = parseCSV(t, ['product','cost','sell','month','unitsTarget','salesTarget']);
     buildMonthOptions();
     buildRepOptions();
     document.getElementById('sync-label').textContent =
@@ -843,8 +846,22 @@ function openProductModal(p) {
 // ═══════════════════════════════════════
 // TARGETS
 // ═══════════════════════════════════════
+function getTargetForProduct(productName) {
+  const month = selectedMonth === 'all' ? null : selectedMonth;
+  const clean = cleanProduct(productName);
+  const rows = targetRows.filter(r => cleanProduct(r.product) === clean || r.product === productName);
+  if(!rows.length) return null;
+  if(month) {
+    const row = rows.find(r => r.month === month);
+    if(row) return { unitsTarget: parseFloat(row.unitsTarget)||0, salesTarget: parseFloat(row.salesTarget)||0 };
+  }
+  return {
+    unitsTarget: rows.reduce((s,r)=>s+(parseFloat(r.unitsTarget)||0),0),
+    salesTarget: rows.reduce((s,r)=>s+(parseFloat(r.salesTarget)||0),0)
+  };
+}
+
 function renderTargets() {
-  // My sales target
   const repKey = currentUser.role==='admin'?'__all__':currentUser.name;
   const t = repTargets[repKey]||{salesTarget:500000,gpTarget:30};
   document.getElementById('target-section').innerHTML=`
@@ -854,13 +871,11 @@ function renderTargets() {
       <div class="tr"><label>GP% Target</label><input type="number" id="my-gp-tgt" value="${t.gpTarget||30}" min="0" max="100" step="1"></div>
     </div>`;
 
-  // Always show product targets
-  document.getElementById('product-targets-heading').textContent='Product Targets';
-  const prods = getProductStats();
+  document.getElementById('product-targets-heading').textContent='';
   const list = document.getElementById('product-target-list');
   list.innerHTML='';
+
   if(currentUser.role==='admin'){
-    // Also show rep targets above products
     const repSection = document.createElement('div');
     repSection.innerHTML='<div class="sh" style="margin-top:0">Rep Targets</div>';
     const repStats = getRepStats();
@@ -878,27 +893,39 @@ function renderTargets() {
     const divider = document.createElement('div');
     divider.className='divider';
     list.appendChild(divider);
-    const prodHeading = document.createElement('div');
-    prodHeading.className='sh';
-    prodHeading.textContent='Product Targets';
-    list.appendChild(prodHeading);
   }
-  prods.forEach(p=>{
-    const pt = productTargets[p.name]||{};
-    const d=document.createElement('div');
-    d.className='tcard';
-    d.innerHTML=`
-      <div class="th"><span class="th-name">${p.name}</span></div>
-      <div class="tr"><label>Units Target (per month)</label><input type="number" id="pu-${p.name.replace(/\s/g,'_').slice(0,20)}" value="${pt.unitsTarget||0}" min="0" step="10"></div>
-      <div class="tr"><label>Sales Target (R)</label><input type="number" id="ps-${p.name.replace(/\s/g,'_').slice(0,20)}" value="${pt.salesTarget||0}" min="0" step="1000"></div>`;
-    list.appendChild(d);
-  });
+
+  const prodHeading = document.createElement('div');
+  prodHeading.className='sh';
+  prodHeading.textContent = targetRows.length ? 'Product Targets (from Cashflow)' : 'Product Targets';
+  list.appendChild(prodHeading);
+
+  const prods = getProductStats().sort((a,b)=>b.subtotal-a.subtotal);
   if(!prods.length) {
     const empty = document.createElement('div');
     empty.className='empty';
     empty.innerHTML='<p>Sync to load product data</p>';
     list.appendChild(empty);
+    return;
   }
+
+  prods.forEach(p=>{
+    const sheetTgt = getTargetForProduct(p.name);
+    const unitsTgt = sheetTgt ? sheetTgt.unitsTarget : (productTargets[p.name]?.unitsTarget||0);
+    const salesTgt = sheetTgt ? sheetTgt.salesTarget : (productTargets[p.name]?.salesTarget||0);
+    const unitsPct = pct(p.qty, unitsTgt);
+    const salesPct = pct(p.subtotal, salesTgt);
+    const d = document.createElement('div');
+    d.className='tcard';
+    d.innerHTML=`
+      <div class="th"><span class="th-name">${p.name}</span></div>
+      <div class="tr"><label>Units Target</label><span style="font-weight:700;color:var(--accent)">${fmtN(unitsTgt)}</span></div>
+      <div class="tr"><label>Units Actual</label><span style="font-weight:700;color:${unitsPct>=100?'var(--green)':unitsPct>=70?'var(--amber)':'var(--red)'}">${fmtN(p.qty)} (${unitsPct}%)</span></div>
+      ${salesTgt>0?`<div class="tr"><label>Sales Target</label><span style="font-weight:700">${fmt(salesTgt)}</span></div>
+      <div class="tr"><label>Sales Actual</label><span style="font-weight:700;color:${salesPct>=100?'var(--green)':salesPct>=70?'var(--amber)':'var(--red)'}">${fmt(p.subtotal)} (${salesPct}%)</span></div>`:''}
+      <div class="pbar" style="margin-top:6px"><div class="pfill ${fc(unitsPct)}" style="width:${cap(unitsPct)}%"></div></div>`;
+    list.appendChild(d);
+  });
 }
 
 function saveTargets() {
