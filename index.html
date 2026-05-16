@@ -679,20 +679,12 @@ function getProductStats() {
   return Object.values(stats);
 }
 
-function normalizeOrderId(raw) {
-  if(!raw) return '';
-  // Extract S-number if present: "123, S00123" -> "S00123"
-  const m = raw.match(/,\s*(S\d+)/i);
-  if(m) return m[1].toUpperCase();
-  // Strip non-alphanumeric for loose comparison
-  return raw.replace(/\s/g,'').toUpperCase();
-}
-
 function getRepStats() {
   const sales = filteredSales();
   const stats = {};
 
-  // Build a lookup map: normalized orderid -> sale row
+  // Sales orderid is a plain number e.g. "112"
+  // Build map keyed by that number
   const saleMap = {};
   sales.forEach(r=>{
     const name = getRepName(r.rep);
@@ -700,19 +692,18 @@ function getRepStats() {
     if(!stats[name]) stats[name] = {name, total:0, orders:0, subtotal:0, totalcost:0};
     stats[name].total  += parseFloat(r.amount)||0;
     stats[name].orders += 1;
-    // Store by multiple keys for flexible matching
-    const nid = normalizeOrderId(r.orderid);
-    if(nid) saleMap[nid] = r;
-    if(r.orderid) saleMap[r.orderid.trim()] = r;
+    const num = (r.orderid||'').trim();
+    if(num) saleMap[num] = r;
   });
 
   const prodLinesFiltered = productLines();
   prodLinesFiltered.forEach(r=>{
-    const rawId = r.orderid||'';
-    // Try multiple lookup strategies
-    const sale = saleMap[rawId.trim()]
-      || saleMap[normalizeOrderId(rawId)]
-      || null;
+    // Lines orderid is "112, S00112" — extract the leading number
+    const rawId = (r.orderid||'').trim();
+    const numMatch = rawId.match(/^(\d+)/);
+    if(!numMatch) return;
+    const num = numMatch[1];
+    const sale = saleMap[num];
     if(!sale) return;
     const name = getRepName(sale.rep);
     if(!stats[name]) return;
