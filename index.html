@@ -623,6 +623,22 @@ function onRepChange() {
 function getProductStats() {
   const lines = filteredLines();
   const stats = {};
+
+  // First seed all products from targetRows for the selected month
+  if(targetRows.length) {
+    const month = selectedMonth === 'all' ? null : selectedMonth;
+    targetRows.forEach(r => {
+      if(month && r.month !== month) return;
+      if(!month) {
+        // For all months just seed unique products
+      }
+      const name = cleanProduct(r.product);
+      if(!name || name==='FALSE') return;
+      if(!stats[name]) stats[name] = {name, qty:0, subtotal:0, totalcost:0};
+    });
+  }
+
+  // Then add actual sales data
   lines.forEach(r=>{
     const name = cleanProduct(r.product);
     if(!name || name==='FALSE' || name.toLowerCase().includes('consulting') || name.toLowerCase().includes('rent') || name.toLowerCase().includes('pallet')) return;
@@ -635,23 +651,27 @@ function getProductStats() {
 }
 
 function getRepStats() {
+  const sales = filteredSales();
+  const lines = filteredLines();
   const stats = {};
-  salesRows.forEach(r=>{
+  sales.forEach(r=>{
     const name = getRepName(r.rep);
     if(!name || name==='Unknown') return;
-    if(!stats[name]) stats[name] = {name, total:0, orders:0};
+    if(!stats[name]) stats[name] = {name, total:0, orders:0, subtotal:0, totalcost:0};
     stats[name].total  += parseFloat(r.amount)||0;
     stats[name].orders += 1;
   });
-  // Add GP per rep from lines
-  lineRows.forEach(r=>{
-    // find which rep owns this order
-    const sale = salesRows.find(s=>s.orderid===r.orderid);
+  // Add GP per rep from filtered lines
+  const myOrderIds = new Set(sales.map(r=>r.orderid));
+  lines.forEach(r=>{
+    const rawId = r.orderid||'';
+    let orderid = rawId;
+    const m = rawId.match(/,\s*(S\d+)/i);
+    if(m) orderid = m[1];
+    const sale = sales.find(s=>s.orderid===orderid||s.orderid===rawId);
     if(!sale) return;
     const name = getRepName(sale.rep);
     if(!stats[name]) return;
-    if(!stats[name].subtotal) stats[name].subtotal=0;
-    if(!stats[name].totalcost) stats[name].totalcost=0;
     stats[name].subtotal  += parseFloat(r.subtotal)||0;
     stats[name].totalcost += parseFloat(r.totalcost)||0;
   });
