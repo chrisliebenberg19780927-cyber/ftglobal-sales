@@ -631,27 +631,24 @@ function onRepChange() {
 }
 
 function getProductStats() {
-  const lines = filteredLines();
+  const lines = productLines();
   const stats = {};
 
-  // First seed all products from targetRows for the selected month
+  // Seed all products from targetRows for selected month
   if(targetRows.length) {
     const month = selectedMonth === 'all' ? null : selectedMonth;
     targetRows.forEach(r => {
       if(month && r.month !== month) return;
-      if(!month) {
-        // For all months just seed unique products
-      }
       const name = cleanProduct(r.product);
       if(!name || name==='FALSE') return;
       if(!stats[name]) stats[name] = {name, qty:0, subtotal:0, totalcost:0};
     });
   }
 
-  // Then add actual sales data
+  // Add actual sales data
   lines.forEach(r=>{
     const name = cleanProduct(r.product);
-    if(!name || name==='FALSE' || name.toLowerCase().includes('consulting') || name.toLowerCase().includes('rent') || name.toLowerCase().includes('pallet')) return;
+    if(!name) return;
     if(!stats[name]) stats[name] = {name, qty:0, subtotal:0, totalcost:0};
     stats[name].qty       += parseFloat(r.qty)||0;
     stats[name].subtotal  += parseFloat(r.subtotal)||0;
@@ -671,9 +668,9 @@ function getRepStats() {
     stats[name].total  += parseFloat(r.amount)||0;
     stats[name].orders += 1;
   });
-  // Add GP per rep from filtered lines
-  const myOrderIds = new Set(sales.map(r=>r.orderid));
-  lines.forEach(r=>{
+  // Add GP per rep from filtered product lines only
+  const prodLinesFiltered = productLines();
+  prodLinesFiltered.forEach(r=>{
     const rawId = r.orderid||'';
     let orderid = rawId;
     const m = rawId.match(/,\s*(S\d+)/i);
@@ -688,9 +685,17 @@ function getRepStats() {
   return Object.values(stats);
 }
 
-// ═══════════════════════════════════════
-// RENDER ALL
-// ═══════════════════════════════════════
+// Product-only lines — excludes rental, consulting, pallets, freight etc
+function isProductLine(r) {
+  const name = cleanProduct(r.product||'').toLowerCase();
+  if(!name || name==='false') return false;
+  const exclude = ['consulting','rent','pallet','freight','delivery','admin','commission','interest','storage'];
+  return !exclude.some(x => name.includes(x));
+}
+
+function productLines() {
+  return filteredLines().filter(isProductLine);
+}
 function renderAll() {
   renderOverview();
   renderReps();
@@ -703,7 +708,7 @@ function renderAll() {
 // ═══════════════════════════════════════
 function renderOverview() {
   const sales   = filteredSales();
-  const lines   = filteredLines();
+  const lines   = productLines();  // product-only for GP
   const total   = sales.reduce((s,r)=>s+(parseFloat(r.amount)||0),0);
   const sub     = lines.reduce((s,r)=>s+(parseFloat(r.subtotal)||0),0);
   const tc      = lines.reduce((s,r)=>s+(parseFloat(r.totalcost)||0),0);
