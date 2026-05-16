@@ -679,23 +679,40 @@ function getProductStats() {
   return Object.values(stats);
 }
 
+function normalizeOrderId(raw) {
+  if(!raw) return '';
+  // Extract S-number if present: "123, S00123" -> "S00123"
+  const m = raw.match(/,\s*(S\d+)/i);
+  if(m) return m[1].toUpperCase();
+  // Strip non-alphanumeric for loose comparison
+  return raw.replace(/\s/g,'').toUpperCase();
+}
+
 function getRepStats() {
   const sales = filteredSales();
   const stats = {};
+
+  // Build a lookup map: normalized orderid -> sale row
+  const saleMap = {};
   sales.forEach(r=>{
     const name = getRepName(r.rep);
     if(!name || name==='Unknown') return;
     if(!stats[name]) stats[name] = {name, total:0, orders:0, subtotal:0, totalcost:0};
     stats[name].total  += parseFloat(r.amount)||0;
     stats[name].orders += 1;
+    // Store by multiple keys for flexible matching
+    const nid = normalizeOrderId(r.orderid);
+    if(nid) saleMap[nid] = r;
+    if(r.orderid) saleMap[r.orderid.trim()] = r;
   });
+
   const prodLinesFiltered = productLines();
   prodLinesFiltered.forEach(r=>{
     const rawId = r.orderid||'';
-    let orderid = rawId;
-    const m = rawId.match(/,\s*(S\d+)/i);
-    if(m) orderid = m[1];
-    const sale = sales.find(s=>s.orderid===orderid||s.orderid===rawId);
+    // Try multiple lookup strategies
+    const sale = saleMap[rawId.trim()]
+      || saleMap[normalizeOrderId(rawId)]
+      || null;
     if(!sale) return;
     const name = getRepName(sale.rep);
     if(!stats[name]) return;
