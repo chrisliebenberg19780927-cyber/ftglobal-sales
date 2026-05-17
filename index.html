@@ -946,10 +946,13 @@ function renderReps(s) {
     });
     const repOrderIds = new Set(repSales.map(r=>extractOrderId(r[5])));
     let total=0, cost=0;
-    repSales.forEach(r => { total+=parseMoney(r[4]); });
+    // Use Lines tab for revenue AND cost — product lines only (same as company total)
+    // This ensures rep sales never exceed company sales
     linesData.forEach(r => {
-      // Only product lines count toward cost (exclude Rent, Consulting, etc.)
-      if(repOrderIds.has(extractOrderId(r[0])) && isProductLine(r[1]||'')) cost+=parseMoney(r[5]);
+      if(repOrderIds.has(extractOrderId(r[0])) && isProductLine(r[1]||'')) {
+        total += parseMoney(r[3]); // col D = line subtotal (revenue)
+        cost  += parseMoney(r[5]); // col F = total cost
+      }
     });
     const gp=total-cost, gpPct=total>0?(gp/total*100):0;
     const target=s.repTargets[name]||0;
@@ -972,11 +975,28 @@ function renderReps(s) {
 }
 
 // ═══════ PRODUCTS ═══════
+let productSearch = '';
+let productStatusFilter = 'all';
+
 function renderProducts(s) {
-  const rows = s.products.map(p => {
+  const mProg = monthProgress();
+  const search = productSearch.toLowerCase().trim();
+
+  const filtered = s.products.filter(p => {
+    // text search
+    if (search && !(p.name||p.rawProduct).toLowerCase().includes(search) && !p.code.toLowerCase().includes(search)) return false;
+    // status filter
+    if (productStatusFilter !== 'all') {
+      const pct = p.target>0 ? (p.sales/p.target)*100 : -1;
+      const status = p.target>0 ? paceStatus(pct, mProg) : 'behind';
+      if (productStatusFilter !== status) return false;
+    }
+    return true;
+  });
+
+  const rows = filtered.map(p => {
     const pct = p.target>0 ? (p.sales/p.target)*100 : -1;
     const hasTarget = p.target > 0;
-    const mProg = monthProgress();
     const fillCls = hasTarget ? pctFillClass(pct, mProg) : 'danger';
     const bCls   = hasTarget ? badgeClass(pct, mProg) : 'badge-red';
     return `<div class="product-row">
@@ -1002,10 +1022,40 @@ function renderProducts(s) {
       `}
     </div>`;
   });
-  return `<div class="page"><div class="card">
-    <div class="section-label">All Products vs Target</div>
-    ${rows.length===0?'<div class="empty">No data for selected period</div>':rows.join('')}
-  </div></div>`;
+
+  const statusBtns = ['all','achieved','ontrack','behind'].map(v => {
+    const labels = {all:'All', achieved:'✓ Achieved', ontrack:'On Track', behind:'Behind'};
+    const active = productStatusFilter === v;
+    const colors = {
+      all:      active ? 'background:var(--navy);color:#fff;border-color:var(--navy)' : '',
+      achieved: active ? 'background:var(--green-lt);color:var(--green);border-color:rgba(39,174,96,0.4)' : '',
+      ontrack:  active ? 'background:var(--amber-lt);color:var(--amber);border-color:rgba(212,130,10,0.4)' : '',
+      behind:   active ? 'background:var(--red-lt);color:var(--red);border-color:rgba(192,57,43,0.4)' : '',
+    };
+    return `<button onclick="productStatusFilter='${v}';renderPage('products')" style="border:1.5px solid var(--border);border-radius:100px;padding:5px 13px;font-size:11px;font-weight:600;background:var(--white);color:var(--text2);cursor:pointer;white-space:nowrap;${colors[v]}">${labels[v]}</button>`;
+  }).join('');
+
+  return `<div class="page">
+    <div style="margin-bottom:10px">
+      <input
+        type="text"
+        placeholder="Search products…"
+        value="${productSearch}"
+        oninput="productSearch=this.value;renderPage('products')"
+        style="width:100%;background:var(--white);border:1.5px solid var(--border);border-radius:10px;color:var(--text);font-family:var(--body);font-size:14px;padding:10px 14px;outline:none;box-shadow:var(--shadow)"
+      >
+    </div>
+    <div style="display:flex;gap:6px;overflow-x:auto;padding-bottom:2px;margin-bottom:10px">
+      ${statusBtns}
+    </div>
+    <div class="card">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">
+        <div class="section-label" style="margin-bottom:0">Products</div>
+        <div style="font-family:var(--mono);font-size:10px;color:var(--text3)">${filtered.length} of ${s.products.length}</div>
+      </div>
+      ${rows.length===0?'<div class="empty">No products match filter</div>':rows.join('')}
+    </div>
+  </div>`;
 }
 
 // ═══════ RUN-RATE HELPER ═══════
@@ -1061,7 +1111,24 @@ function renderTargets(s) {
   const salesByCode = {};
   s.products.forEach(p => { if(p.code) salesByCode[p.code] = p; });
 
-  const prodRows = tMonths.map(t => {
+  const tSearch = (document.getElementById('targetSearch')||{}).value || '';
+  const tStatusF = (document.getElementById('targetStatusFilter')||{}).value || 'all';
+  const tSearchLc = tSearch.toLowerCase();
+
+  const prodRows = tMonths.filter(t => {
+    const name = (t[0]||'').replace(/\[[^\]]+\]\s*/,'').toLowerCase();
+    const codeMatch = (t[0]||'').match(/\[([^\]]+)\]/);
+    const code = codeMatch ? codeMatch[1].toLowerCase() : '';
+    if (tSearchLc && !name.includes(tSearchLc) && !code.includes(tSearchLc)) return false;
+    if (tStatusF !== 'all') {
+      const salesTarget = parseMoney(t[5]);
+      const actual = salesByCode[codeMatch?codeMatch[1]:''] || {sales:0};
+      const pct = salesTarget>0 ? (actual.sales/salesTarget)*100 : 0;
+      const status = paceStatus(pct, mProg);
+      if (tStatusF !== status) return false;
+    }
+    return true;
+  }).map(t => {
     const codeMatch = (t[0]||'').match(/\[([^\]]+)\]/);
     const code = codeMatch ? codeMatch[1] : '';
     const name = (t[0]||'').replace(/\[[^\]]+\]\s*/,'').trim();
@@ -1116,16 +1183,34 @@ function renderTargets(s) {
       <button class="btn-save" onclick="saveRepTargets()">Save Targets</button>
     </div>
     ${tMonths.length>0?`<div class="card">
-      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
         <div class="section-label" style="margin-bottom:0">Product Targets · ${monthLabel}</div>
         ${mProgLabel?`<div style="font-family:var(--mono);font-size:10px;color:var(--text3)">${mProgLabel}</div>`:''}
       </div>
-      <div style="display:flex;gap:10px;margin-bottom:14px;flex-wrap:wrap">
-        <span style="display:flex;align-items:center;gap:5px;font-size:11px;color:var(--green)"><span style="width:10px;height:10px;border-radius:50%;background:var(--green2);display:inline-block"></span>Achieved</span>
-        <span style="display:flex;align-items:center;gap:5px;font-size:11px;color:var(--amber)"><span style="width:10px;height:10px;border-radius:50%;background:var(--amber);display:inline-block"></span>On Track</span>
-        <span style="display:flex;align-items:center;gap:5px;font-size:11px;color:var(--red)"><span style="width:10px;height:10px;border-radius:50%;background:var(--red2);display:inline-block"></span>Behind</span>
+      <input id="targetSearch" type="text" placeholder="Search products…"
+        oninput="renderPage('targets')"
+        style="width:100%;background:var(--off);border:1.5px solid var(--border);border-radius:10px;color:var(--text);font-family:var(--body);font-size:13px;padding:9px 13px;outline:none;margin-bottom:10px">
+      <div style="display:flex;gap:6px;overflow-x:auto;padding-bottom:4px;margin-bottom:12px">
+        ${['all','achieved','ontrack','behind'].map(v=>{
+          const labels={all:'All',achieved:'✓ Achieved',ontrack:'On Track',behind:'Behind'};
+          const cur=(document.getElementById('targetStatusFilter')||{}).value||'all';
+          const active=cur===v;
+          const colors={
+            all:      active?'background:var(--navy);color:#fff;border-color:var(--navy)':'',
+            achieved: active?'background:var(--green-lt);color:var(--green);border-color:rgba(39,174,96,0.4)':'',
+            ontrack:  active?'background:var(--amber-lt);color:var(--amber);border-color:rgba(212,130,10,0.4)':'',
+            behind:   active?'background:var(--red-lt);color:var(--red);border-color:rgba(192,57,43,0.4)':'',
+          };
+          return `<button onclick="document.getElementById('targetStatusFilter').value='${v}';renderPage('targets')" style="border:1.5px solid var(--border);border-radius:100px;padding:5px 13px;font-size:11px;font-weight:600;background:var(--white);color:var(--text2);cursor:pointer;white-space:nowrap;${colors[v]}">${labels[v]}</button>`;
+        }).join('')}
+        <input type="hidden" id="targetStatusFilter" value="all">
       </div>
-      ${prodRows.length?prodRows:'<div class="empty">No targets set for this period</div>'}
+      <div style="display:flex;gap:10px;margin-bottom:12px;flex-wrap:wrap">
+        <span style="display:flex;align-items:center;gap:5px;font-size:11px;color:var(--green)"><span style="width:8px;height:8px;border-radius:50%;background:var(--green2);display:inline-block"></span>Achieved</span>
+        <span style="display:flex;align-items:center;gap:5px;font-size:11px;color:var(--amber)"><span style="width:8px;height:8px;border-radius:50%;background:var(--amber);display:inline-block"></span>On Track</span>
+        <span style="display:flex;align-items:center;gap:5px;font-size:11px;color:var(--red)"><span style="width:8px;height:8px;border-radius:50%;background:var(--red2);display:inline-block"></span>Behind</span>
+      </div>
+      ${prodRows.length?prodRows:'<div class="empty">No products match filter</div>'}
     </div>`:''}
     <div class="card card-sm" style="margin-top:4px">
       <div style="font-size:12px;color:var(--text2);margin-bottom:6px">
