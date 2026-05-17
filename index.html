@@ -840,12 +840,12 @@ function buildStats() {
 const fmtR     = n => n>=1e6 ? 'R '+(n/1e6).toFixed(2)+'M' : n>=1e3 ? 'R '+(n/1e3).toFixed(1)+'K' : 'R '+Math.round(n).toLocaleString();
 const fmtRFull = n => 'R '+Math.round(n).toLocaleString();
 const fmtPct   = n => n.toFixed(1)+'%';
-function pctFillClass(p) { return p>=100?'':'p>=60?'gold':'danger'; }
+function pctFillClass(p) { return p>=100?'green':p>=60?'gold':'danger'; }
 function badgeClass(p)   { return p>=100?'badge-green':p>=60?'badge-amber':'badge-red'; }
 
 function progressHTML(val, target, dark=false) {
   const pct = target>0 ? Math.min((val/target)*100, 100) : 0;
-  const cls  = pct>=100?'':pct>=60?'gold':'danger';
+  const cls  = pct>=100?'green':pct>=60?'gold':'danger';
   const dCls = dark ? '' : 'light';
   const pCls = dark ? '' : 'dark';
   return `
@@ -922,7 +922,7 @@ function renderOverview(s) {
             <span style="color:var(--navy);font-weight:500">${fmtR(p.sales)}</span>
             <span>${p.qty>0?p.qty.toLocaleString()+' units':''}</span>
           </div>
-          ${p.target>0?`<div class="progress-track light" style="margin-top:4px"><div class="progress-fill ${p.sales/p.target>=1?'':p.sales/p.target>=0.6?'gold':'danger'}" style="width:${Math.min((p.sales/p.target)*100,100)}%"></div></div>`:''}
+          ${p.target>0?`<div class="progress-track light" style="margin-top:4px"><div class="progress-fill ${p.sales/p.target>=1?'green':p.sales/p.target>=0.6?'gold':'danger'}" style="width:${Math.min((p.sales/p.target)*100,100)}%"></div></div>`:''}
         </div>`).join('')}
   </div>
 </div>`;
@@ -979,7 +979,7 @@ function renderProducts(s) {
           : '<span style="color:var(--text3);font-size:11px">No target</span>'}</span>
       </div>
       ${p.target>0
-        ? `<div class="progress-track light" style="margin-top:5px"><div class="progress-fill ${pct>=100?'':pct>=60?'gold':'danger'}" style="width:${Math.min(pct,100)}%"></div></div>`
+        ? `<div class="progress-track light" style="margin-top:5px"><div class="progress-fill ${pct>=100?'green':pct>=60?'gold':'danger'}" style="width:${Math.min(pct,100)}%"></div></div>`
         : ''}
     </div>`;
   });
