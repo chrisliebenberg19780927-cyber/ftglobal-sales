@@ -9,30 +9,35 @@
 <link href="https://fonts.googleapis.com/css2?family=DM+Mono:ital,wght@0,400;0,500&family=Playfair+Display:wght@500;600;700&family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet">
 <style>
   :root {
-    --white:   #ffffff;
-    --off:     #f7f5f0;
-    --off2:    #f0ede6;
-    --card:    #ffffff;
-    --border:  #e8e2d8;
-    --border2: #d4c9b8;
-    --gold:    #b8962e;
-    --gold2:   #d4af37;
-    --gold-lt: #f5ecd4;
-    --gold-bg: #fdf8ee;
-    --red:     #b52a1c;
-    --red-lt:  #fdf1ef;
-    --green:   #1a6b3a;
-    --green-lt:#edf7f1;
-    --navy:    #1a2540;
-    --navy2:   #253050;
-    --text:    #1a1a1a;
-    --text2:   #6b6050;
-    --text3:   #a09080;
-    --mono:    'DM Mono', monospace;
-    --head:    'Playfair Display', serif;
-    --body:    'Inter', sans-serif;
-    --shadow:  0 1px 3px rgba(0,0,0,0.06), 0 4px 16px rgba(0,0,0,0.06);
-    --shadow2: 0 2px 8px rgba(0,0,0,0.08), 0 8px 32px rgba(0,0,0,0.08);
+    --white:    #ffffff;
+    --off:      #f4f6fa;
+    --off2:     #eaecf2;
+    --card:     #ffffff;
+    --border:   #dde2ee;
+    --border2:  #c4ccdf;
+    --navy:     #1a2540;
+    --navy2:    #253050;
+    --navy3:    #0f1828;
+    --navy-lt:  #eef0f6;
+    --gold:     #b8962e;
+    --gold2:    #d4af37;
+    --gold-lt:  #fdf6e3;
+    --red:      #c0392b;
+    --red2:     #e74c3c;
+    --red-lt:   #fdf0ef;
+    --amber:    #d4820a;
+    --amber-lt: #fef5e7;
+    --green:    #1a7a3a;
+    --green2:   #27ae60;
+    --green-lt: #eaf7ee;
+    --text:     #1a2540;
+    --text2:    #5a6680;
+    --text3:    #9aa0b4;
+    --mono:     'DM Mono', monospace;
+    --head:     'Playfair Display', serif;
+    --body:     'Inter', sans-serif;
+    --shadow:   0 1px 3px rgba(26,37,64,0.06), 0 4px 16px rgba(26,37,64,0.06);
+    --shadow2:  0 2px 8px rgba(26,37,64,0.10), 0 8px 32px rgba(26,37,64,0.10);
   }
 
   * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
@@ -306,10 +311,10 @@
   .progress-fill {
     height: 100%; border-radius: 100px;
     transition: width 0.9s cubic-bezier(0.16,1,0.3,1);
-    background: linear-gradient(90deg, #1a5a30, #27ae60);
+    background: linear-gradient(90deg, var(--green), var(--green2));
   }
-  .progress-fill.gold   { background: linear-gradient(90deg, #8a6a10, var(--gold2)); }
-  .progress-fill.danger { background: linear-gradient(90deg, #8a1a10, #e74c3c); }
+  .progress-fill.amber  { background: linear-gradient(90deg, #a06008, var(--amber)); }
+  .progress-fill.danger { background: linear-gradient(90deg, var(--red), var(--red2)); }
 
   .progress-pct {
     font-family: var(--mono); font-size: 11px;
@@ -400,6 +405,7 @@
     padding: 2px 8px; font-family: var(--mono); font-size: 11px;
   }
   .badge-green { background: var(--green-lt); color: var(--green); border: 1px solid rgba(26,107,58,0.2); }
+  .badge-amber { background: var(--amber-lt); color: var(--amber); border: 1px solid rgba(212,130,10,0.2); }
   .badge-amber { background: var(--gold-bg); color: var(--gold); border: 1px solid rgba(184,150,46,0.25); }
   .badge-red   { background: var(--red-lt); color: var(--red); border: 1px solid rgba(181,42,28,0.2); }
 
@@ -841,8 +847,8 @@ function buildStats() {
 const fmtR     = n => n>=1e6 ? 'R '+(n/1e6).toFixed(2)+'M' : n>=1e3 ? 'R '+(n/1e3).toFixed(1)+'K' : 'R '+Math.round(n).toLocaleString();
 const fmtRFull = n => 'R '+Math.round(n).toLocaleString();
 const fmtPct   = n => n.toFixed(1)+'%';
-function pctFillClass(p) { return p>=100?'green':p>=60?'gold':'danger'; }
-function badgeClass(p)   { return p>=100?'badge-green':p>=60?'badge-amber':'badge-red'; }
+function pctFillClass(p, mProg=1) { const s=paceStatus(p,mProg); return s==='achieved'?'green':s==='ontrack'?'amber':'danger'; }
+function badgeClass(p, mProg=1)   { const s=paceStatus(p,mProg); return s==='achieved'?'badge-green':s==='ontrack'?'badge-amber':'badge-red'; }
 
 function progressHTML(val, target, dark=false) {
   const pct = target>0 ? Math.min((val/target)*100, 100) : 0;
@@ -970,7 +976,9 @@ function renderProducts(s) {
   const rows = s.products.map(p => {
     const pct = p.target>0 ? (p.sales/p.target)*100 : -1;
     const hasTarget = p.target > 0;
-    const fillCls = pct>=100?'green':pct>=60?'gold':'danger';
+    const mProg = monthProgress();
+    const fillCls = hasTarget ? pctFillClass(pct, mProg) : 'danger';
+    const bCls   = hasTarget ? badgeClass(pct, mProg) : 'badge-red';
     return `<div class="product-row">
       <div class="product-top">
         <div class="product-name">${p.name||p.rawProduct}</div>
@@ -981,7 +989,7 @@ function renderProducts(s) {
           ${p.sales>0?fmtR(p.sales):'<span style="color:var(--text3)">R 0</span>'}
         </span>
         ${hasTarget
-          ? `<span class="badge ${badgeClass(pct)}">${fmtPct(pct)}</span>`
+          ? `<span class="badge ${bCls}">${fmtPct(pct)}</span>`
           : '<span style="color:var(--text3);font-size:11px">No target</span>'}
       </div>
       ${hasTarget ? `
@@ -1000,9 +1008,44 @@ function renderProducts(s) {
   </div></div>`;
 }
 
+// ═══════ RUN-RATE HELPER ═══════
+// Returns how far through the month we are (0-1), or 1 if viewing past/all months.
+// Used to decide traffic-light colour based on pace, not raw % of target.
+function monthProgress() {
+  if (!filteredMonth) return 1; // all months: judge on total
+  const now = new Date();
+  const [yr, mo] = filteredMonth.split('-').map(Number);
+  const currentYr = now.getFullYear(), currentMo = now.getMonth()+1;
+  if (yr > currentYr || (yr===currentYr && mo > currentMo)) return 0; // future
+  if (yr < currentYr || (yr===currentYr && mo < currentMo)) return 1; // past month
+  // Current month: days elapsed / days in month
+  const daysInMonth = new Date(yr, mo, 0).getDate();
+  const dayOfMonth  = now.getDate();
+  return Math.min(dayOfMonth / daysInMonth, 1);
+}
+
+// Traffic light: compare actual % of target vs % of month elapsed.
+// Behind = actual < 85% of expected pace
+// On track = 85–100% of expected pace
+// Achieved = at or above target
+function paceStatus(actualPct, monthPct) {
+  if (actualPct >= 100) return 'achieved';
+  if (monthPct === 0) return 'behind';
+  const ratio = actualPct / (monthPct * 100); // how much of expected pace
+  if (ratio >= 0.85) return 'ontrack';
+  return 'behind';
+}
+
+function statusColors(status) {
+  if (status === 'achieved') return { bar:'var(--green2)', bg:'var(--green-lt)', text:'var(--green)', border:'rgba(39,174,96,0.25)' };
+  if (status === 'ontrack')  return { bar:'var(--amber)',  bg:'var(--amber-lt)', text:'var(--amber)', border:'rgba(212,130,10,0.25)' };
+  return                             { bar:'var(--red2)',  bg:'var(--red-lt)',   text:'var(--red)',   border:'rgba(192,57,43,0.25)' };
+}
+
 // ═══════ TARGETS ═══════
 function renderTargets(s) {
   const repNames = currentUser.role==='admin'?['Chris Liebenberg','Lynn Moore']:[currentUser.name];
+  const mProg = monthProgress();
   const repRows = repNames.map(name=>`
     <div class="target-row">
       <div class="target-name">${name}</div>
@@ -1011,18 +1054,60 @@ function renderTargets(s) {
         placeholder="R 0">
     </div>`).join('');
 
+  // All products in the targets sheet for the period
   const tMonths = filteredMonth ? targetsData.filter(t=>(t[3]||'')===filteredMonth) : targetsData;
-  const prodRows = tMonths.slice(0,20).map(t=>{
-    const code=(t[0]||'').match(/\[([^\]]+)\]/);
-    const name=(t[0]||'').replace(/\[[^\]]+\]\s*/,'').trim();
-    return `<div class="prod-target-row">
-      <div class="ptname">${name}${code?`<br><span style="font-family:var(--mono);font-size:10px;color:var(--gold)">[${code[1]}]</span>`:''}</div>
-      <div class="ptvals">
-        <div class="v1">${fmtR(parseMoney(t[5]))}</div>
-        <div class="v2">${parseNum(t[4])>0?parseNum(t[4]).toLocaleString()+' units':''}</div>
+
+  // Build a map of actual sales per product code from s.products
+  const salesByCode = {};
+  s.products.forEach(p => { if(p.code) salesByCode[p.code] = p; });
+
+  const prodRows = tMonths.map(t => {
+    const codeMatch = (t[0]||'').match(/\[([^\]]+)\]/);
+    const code = codeMatch ? codeMatch[1] : '';
+    const name = (t[0]||'').replace(/\[[^\]]+\]\s*/,'').trim();
+    const salesTarget  = parseMoney(t[5]);
+    const unitsTarget  = parseNum(t[4]);
+    const actual       = salesByCode[code] || {sales:0, qty:0};
+    const pct          = salesTarget > 0 ? (actual.sales / salesTarget) * 100 : 0;
+    const status       = paceStatus(pct, mProg);
+    const col          = statusColors(status);
+    const statusLabel  = status==='achieved'?'✓ Achieved':status==='ontrack'?'On Track':'Behind';
+    const expectedSales = salesTarget * mProg;
+    const gap           = expectedSales - actual.sales;
+
+    return `<div style="padding:14px 0;border-bottom:1px solid var(--border)">
+      <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:8px;margin-bottom:8px">
+        <div>
+          <div style="font-size:13px;font-weight:500;color:var(--navy);line-height:1.3">${name}</div>
+          ${code?`<div style="font-family:var(--mono);font-size:10px;color:var(--gold);margin-top:2px">[${code}]</div>`:''}
+        </div>
+        <div style="background:${col.bg};color:${col.text};border:1px solid ${col.border};border-radius:6px;padding:3px 9px;font-size:11px;font-weight:600;white-space:nowrap;flex-shrink:0">${statusLabel}</div>
+      </div>
+      <div style="background:var(--off2);border-radius:100px;height:6px;overflow:hidden;margin-bottom:7px">
+        <div style="height:100%;border-radius:100px;width:${Math.min(pct,100)}%;background:${col.bar};transition:width 0.8s cubic-bezier(0.16,1,0.3,1)"></div>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:4px;font-family:var(--mono);font-size:10px">
+        <div>
+          <div style="color:var(--text3);margin-bottom:1px">SOLD</div>
+          <div style="color:var(--navy);font-weight:500">${fmtR(actual.sales)}</div>
+          ${actual.qty>0?`<div style="color:var(--text3)">${actual.qty.toLocaleString()} units</div>`:''}
+        </div>
+        <div>
+          <div style="color:var(--text3);margin-bottom:1px">TARGET</div>
+          <div style="color:var(--navy);font-weight:500">${fmtR(salesTarget)}</div>
+          ${unitsTarget>0?`<div style="color:var(--text3)">${unitsTarget.toLocaleString()} units</div>`:''}
+        </div>
+        <div>
+          <div style="color:var(--text3);margin-bottom:1px">${status==='achieved'?'SURPLUS':'BEHIND BY'}</div>
+          <div style="color:${col.text};font-weight:500">${fmtR(Math.abs(gap))}</div>
+          <div style="color:var(--text3)">${fmtPct(Math.min(pct,999))} done</div>
+        </div>
       </div>
     </div>`;
   }).join('');
+
+  const monthLabel = filteredMonth || 'All';
+  const mProgLabel = filteredMonth ? `${Math.round(mProg*100)}% of month elapsed` : '';
 
   return `<div class="page">
     <div class="card">
@@ -1031,8 +1116,16 @@ function renderTargets(s) {
       <button class="btn-save" onclick="saveRepTargets()">Save Targets</button>
     </div>
     ${tMonths.length>0?`<div class="card">
-      <div class="section-label">Product Targets · ${filteredMonth||'All'}</div>
-      ${prodRows}
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px">
+        <div class="section-label" style="margin-bottom:0">Product Targets · ${monthLabel}</div>
+        ${mProgLabel?`<div style="font-family:var(--mono);font-size:10px;color:var(--text3)">${mProgLabel}</div>`:''}
+      </div>
+      <div style="display:flex;gap:10px;margin-bottom:14px;flex-wrap:wrap">
+        <span style="display:flex;align-items:center;gap:5px;font-size:11px;color:var(--green)"><span style="width:10px;height:10px;border-radius:50%;background:var(--green2);display:inline-block"></span>Achieved</span>
+        <span style="display:flex;align-items:center;gap:5px;font-size:11px;color:var(--amber)"><span style="width:10px;height:10px;border-radius:50%;background:var(--amber);display:inline-block"></span>On Track</span>
+        <span style="display:flex;align-items:center;gap:5px;font-size:11px;color:var(--red)"><span style="width:10px;height:10px;border-radius:50%;background:var(--red2);display:inline-block"></span>Behind</span>
+      </div>
+      ${prodRows.length?prodRows:'<div class="empty">No targets set for this period</div>'}
     </div>`:''}
     <div class="card card-sm" style="margin-top:4px">
       <div style="font-size:12px;color:var(--text2);margin-bottom:6px">
