@@ -593,6 +593,13 @@
       </svg>
       Targets
     </div>
+    <div class="nav-item" id="nav-inventory" onclick="showPage('inventory')">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+        <path d="M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8"/>
+        <path d="M10 12h4"/>
+      </svg>
+      Stock
+    </div>
   </div>
 </div>
 
@@ -624,6 +631,10 @@ const USERS = {
 let currentUser=null, currentPage='overview';
 let salesData=[], linesData=[], targetsData=[];
 let syncTimer=null, filteredMonth='', filteredRep='';
+// Inventory / Odoo state
+let odooSession=null, stockData=[], poData=[];
+let invSearch='', invFilter='all';
+let invLoading=false, invError='';
 
 // ═══════ LOGIN ═══════
 document.getElementById('loginPass').addEventListener('keydown', e => { if(e.key==='Enter') doLogin(); });
@@ -862,22 +873,193 @@ function progressHTML(val, target, dark=false) {
     <div class="progress-pct ${pCls}"><strong>${fmtPct(pct)}</strong> of ${fmtR(target)}</div>`;
 }
 
+// ═══════ ODOO API ═══════
+const ODOO_BASE = 'https://ftglobal.odoo.com';
+const ODOO_DB   = 'ftglobal';
+const ODOO_USER = 'chris@reddot-sa.co.za';
+const ODOO_PASS = 'Bella50.';
+const LEAD_DAYS = 90;
+
+async function odooCall(endpoint, payload, sessionId) {
+  const headers = { 'Content-Type': 'application/json' };
+  if (sessionId) headers['X-Openerp-Session-Id'] = sessionId;
+  const r = await fetch(ODOO_BASE + endpoint, {
+    method: 'POST',
+    headers,
+    credentials: 'include',
+    body: JSON.stringify(payload)
+  });
+  const j = await r.json();
+  if (j.error) throw new Error(j.error.data?.message || JSON.stringify(j.error));
+  return j.result;
+}
+
+async function odooAuthenticate() {
+  const result = await odooCall('/web/session/authenticate', {
+    jsonrpc:'2.0', method:'call', id:1,
+    params: { db:ODOO_DB, login:ODOO_USER, password:ODOO_PASS }
+  });
+  if (!result?.uid) throw new Error('Authentication failed');
+  odooSession = result.session_id;
+  return result.uid;
+}
+
+async function odooSearch(model, domain, fields, limit=500) {
+  return odooCall('/web/dataset/call_kw', {
+    jsonrpc:'2.0', method:'call', id:2,
+    params: {
+      model, method:'search_read',
+      args: [domain],
+      kwargs: { fields, limit }
+    }
+  }, odooSession);
+}
+
+// Find warehouse id for CTP
+async function getCTPWarehouseLocationIds() {
+  // Get all internal locations under CTP warehouse
+  const locs = await odooSearch('stock.location',
+    [['complete_name','ilike','CTP'],['usage','=','internal']],
+    ['id','name','complete_name']
+  );
+  return locs.map(l => l.id);
+}
+
+async function loadInventory() {
+  invLoading = true; invError = '';
+  renderPage('inventory');
+  try {
+    if (!odooSession) await odooAuthenticate();
+
+    // Get CTP internal location IDs
+    const locIds = await getCTPWarehouseLocationIds();
+    if (!locIds.length) throw new Error('CTP warehouse locations not found');
+
+    // Stock on hand: product.product with qty_at_date for CTP warehouse
+    // Use product.product search_read with stock context — matches Odoo's own export
+    // Fields match the xlsx export: internal_reference, name, qty_available, standard_price
+    const products = await odooSearch('product.product',
+      [['type','=','product'],['default_code','!=',false]],
+      ['id','display_name','default_code','qty_available','virtual_available','standard_price','uom_id']
+    );
+
+    // Filter to only products with an internal reference code (excludes PALLET etc)
+    stockData = products
+      .filter(p => p.default_code && /^\d+$/.test((p.default_code||'').trim()))
+      .map(p => {
+        const qty       = p.qty_available || 0;
+        const unitCost  = p.standard_price || 0;
+        // dispName: strip [CODE] prefix if Odoo includes it in display_name
+        const dispName  = (p.display_name||'').replace(/^\[[^\]]+\]\s*/,'').trim();
+        return {
+          pid:       p.id,
+          code:      (p.default_code||'').trim(),
+          dispName,
+          qty,
+          reserved:  Math.max(0, qty - (p.virtual_available || qty)),
+          available: qty,   // qty_available already excludes reservations in Odoo
+          value:     qty * unitCost,
+          unitCost,
+        };
+      });
+
+    // Confirmed Purchase Orders — headers
+    const poHeaders = await odooSearch('purchase.order',
+      [['state','in',['purchase','done']]],
+      ['id','name','date_approve','partner_id','state','amount_total','currency_id']
+    );
+
+    const poIds = poHeaders.map(p => p.id);
+    let poLines = [];
+    if (poIds.length) {
+      // Get all lines; filter outstanding (qty_received < product_qty) in JS
+      // because Odoo domain comparison between two fields needs special syntax
+      poLines = await odooSearch('purchase.order.line',
+        [['order_id','in',poIds]],
+        ['order_id','product_id','product_qty','qty_received',
+         'price_unit','price_subtotal','date_planned','product_uom']
+      );
+    }
+
+    // Build PO header lookup
+    const poHeaderMap = {};
+    poHeaders.forEach(h => { poHeaderMap[h.id] = h; });
+
+    poData = poLines
+      .map(l => {
+        const hdr            = poHeaderMap[l.order_id[0]] || {};
+        const qtyOrdered     = l.product_qty    || 0;
+        const qtyReceived    = l.qty_received   || 0;
+        const qtyOutstanding = Math.max(0, qtyOrdered - qtyReceived);
+
+        // price_subtotal = total for ordered qty (inc. discount, excl. tax)
+        // Outstanding value = proportional share of subtotal
+        const unitCost       = l.price_unit || 0;
+        const subtotal       = l.price_subtotal || (qtyOrdered * unitCost);
+        const outstandingVal = qtyOrdered > 0
+          ? (qtyOutstanding / qtyOrdered) * subtotal
+          : 0;
+
+        // ETA: prefer date_planned on line, fallback to order date + 90 days
+        const orderDate = hdr.date_approve ? new Date(hdr.date_approve) : null;
+        const eta = l.date_planned
+          ? new Date(l.date_planned)
+          : orderDate
+          ? new Date(orderDate.getTime() + LEAD_DAYS * 86400000)
+          : null;
+
+        const m = (l.product_id[1]||'').match(/\[([^\]]+)\]/);
+        return {
+          poName:         hdr.name || ('PO ' + l.order_id[0]),
+          poId:           l.order_id[0],
+          supplier:       hdr.partner_id ? hdr.partner_id[1] : '',
+          pid:            l.product_id[0],
+          pname:          l.product_id[1] || '',
+          code:           m ? m[1] : '',
+          dispName:       (l.product_id[1]||'').replace(/\[[^\]]+\]\s*/,'').trim(),
+          qtyOrdered,
+          qtyReceived,
+          qtyOutstanding,
+          unitCost,
+          totalValue:     outstandingVal,   // outstanding value at purchase price
+          orderDate,
+          eta,
+          daysToEta:      eta ? Math.round((eta - new Date()) / 86400000) : null,
+        };
+      })
+      .filter(l => l.qtyOutstanding > 0);  // only lines with stock still to arrive
+
+    invLoading = false;
+    renderPage('inventory');
+  } catch(e) {
+    invLoading = false;
+    invError = e.message;
+    renderPage('inventory');
+  }
+}
+
 // ═══════ NAV ═══════
 function showPage(page) {
   currentPage = page;
   document.querySelectorAll('.nav-item').forEach(el=>el.classList.remove('active'));
   const nav = document.getElementById('nav-'+page);
   if(nav) nav.classList.add('active');
-  renderPage(page);
+  // Load inventory from Odoo when tab first opened or refreshed
+  if (page === 'inventory' && !invLoading && (!stockData.length || !poData.length)) {
+    loadInventory();
+  } else {
+    renderPage(page);
+  }
 }
 function renderPage(page) {
   if(!salesData.length && !targetsData.length) return;
   const stats = buildStats();
   const c = document.getElementById('content');
-  if(page==='overview') c.innerHTML = renderOverview(stats);
-  if(page==='reps')     c.innerHTML = renderReps(stats);
-  if(page==='products') c.innerHTML = renderProducts(stats);
-  if(page==='targets')  c.innerHTML = renderTargets(stats);
+  if(page==='overview')   c.innerHTML = renderOverview(stats);
+  if(page==='reps')       c.innerHTML = renderReps(stats);
+  if(page==='products')   c.innerHTML = renderProducts(stats);
+  if(page==='targets')    c.innerHTML = renderTargets(stats);
+  if(page==='inventory')  c.innerHTML = renderInventory(stats);
 }
 
 // ═══════ OVERVIEW ═══════
@@ -1219,6 +1401,355 @@ function renderTargets(s) {
       </div>
       <button class="btn-signout" onclick="signOut()">Sign Out</button>
     </div>
+  </div>`;
+}
+
+// ═══════ INVENTORY PAGE ═══════
+
+// Build 60-day rolling run rate from raw linesData — independent of any filter.
+// Returns { code → units_per_day }
+function buildRunRates() {
+  const now    = new Date();
+  const cutoff = new Date(now.getTime() - 60 * 86400000); // 60 days ago
+  const dayMap = {}; // code → { units, days }
+
+  // Find all sales orders in the last 60 days
+  const recentOrderIds = new Set();
+  salesData.forEach(r => {
+    const d = parseDate(r[0]);
+    if (d && d >= cutoff && d <= now) recentOrderIds.add(extractOrderId(r[5]));
+  });
+
+  // Sum units per product code from lines
+  linesData.forEach(r => {
+    const id = extractOrderId(r[0]);
+    if (!recentOrderIds.has(id)) return;
+    if (!isProductLine(r[1]||'')) return;
+    const codeMatch = (r[1]||'').match(/\[([^\]]+)\]/);
+    const code = codeMatch ? codeMatch[1] : '';
+    if (!code) return;
+    const qty = parseNum(r[2]);
+    if (!dayMap[code]) dayMap[code] = 0;
+    dayMap[code] += qty;
+  });
+
+  // Actual days elapsed in the 60-day window (at least 1 to avoid div/0)
+  const daysElapsed = Math.max(1,
+    Math.round((now - cutoff) / 86400000)
+  );
+
+  // Convert totals → per day rate
+  const rates = {};
+  Object.entries(dayMap).forEach(([code, units]) => {
+    rates[code] = units / daysElapsed;
+  });
+  return { rates, daysElapsed };
+}
+
+function renderInventory(s) {
+
+  // ── Loading / error states ──
+  if (invLoading) {
+    return `<div class="page"><div class="loading-state">
+      <div class="loader"></div>
+      <div>Connecting to Odoo…</div>
+    </div></div>`;
+  }
+  if (invError) {
+    return `<div class="page"><div class="card" style="text-align:center;padding:32px 20px">
+      <div style="font-size:28px;margin-bottom:12px">⚠️</div>
+      <div style="font-weight:600;color:var(--navy);margin-bottom:6px">Could not load stock data</div>
+      <div style="font-size:12px;color:var(--text2);margin-bottom:20px">${invError}</div>
+      <button onclick="stockData=[];poData=[];loadInventory()" style="background:var(--navy);color:#fff;border:none;border-radius:8px;padding:10px 20px;font-size:13px;cursor:pointer">↻ Retry</button>
+    </div></div>`;
+  }
+  if (!stockData.length && !poData.length) {
+    return `<div class="page"><div class="card" style="text-align:center;padding:40px 20px">
+      <div style="font-size:32px;margin-bottom:12px">📦</div>
+      <div style="color:var(--text2);font-size:13px;margin-bottom:20px">No inventory data loaded yet.</div>
+      <button onclick="loadInventory()" style="background:var(--navy);color:#fff;border:none;border-radius:8px;padding:10px 20px;font-size:13px;cursor:pointer">Load Stock Data</button>
+    </div></div>`;
+  }
+
+  // ── 60-day rolling run rates ──
+  const { rates: runRates, daysElapsed } = buildRunRates();
+
+  const srch = invSearch.toLowerCase().trim();
+
+  // ── Enrich each stock item with coverage calcs ──
+  const enriched = stockData.map(st => {
+    const vel          = runRates[st.code] || 0;               // cases/day
+    const daysOnHand   = vel > 0 ? st.available / vel : null;  // days of stock on hand
+    const openPOs      = poData.filter(p => p.code === st.code);
+    const onOrderQty   = openPOs.reduce((a,p) => a + p.qtyOutstanding, 0);
+    const daysOnOrder  = vel > 0 ? onOrderQty / vel : null;    // days of stock on order
+    const totalCover   = (daysOnHand || 0) + (daysOnOrder || 0); // combined days cover
+
+    // Reorder qty: enough to bring total cover to 180 days (90 in transit + 90 buffer)
+    // = (180 days × daily rate) − on hand − on order, rounded up to nearest 10
+    const targetCover  = LEAD_DAYS * 2;
+    const reorderQty   = vel > 0
+      ? Math.max(0, Math.ceil((targetCover * vel - st.available - onOrderQty) / 10) * 10)
+      : null;
+
+    // Status: based on COMBINED cover vs 90-day lead time
+    let status = 'ok';
+    if (vel > 0) {
+      if (totalCover < LEAD_DAYS)        status = 'critical';  // will run out before next shipment
+      else if (totalCover < LEAD_DAYS * 1.33) status = 'soon'; // < 120 days combined
+    }
+
+    const nextEta = openPOs.length
+      ? [...openPOs].sort((a,b) => (a.daysToEta ?? 9999) - (b.daysToEta ?? 9999))[0]
+      : null;
+
+    return { ...st, vel, daysOnHand, daysOnOrder, onOrderQty, totalCover, reorderQty, status, nextEta, openPOs };
+  });
+
+  // ── Filter ──
+  const filteredStock = enriched.filter(st => {
+    if (srch && !st.dispName.toLowerCase().includes(srch) && !st.code.toLowerCase().includes(srch)) return false;
+    if (invFilter === 'critical') return st.status === 'critical';
+    if (invFilter === 'soon')     return st.status === 'soon';
+    if (invFilter === 'ok')       return st.status === 'ok';
+    return true;
+  });
+
+  // Sort: critical first, then soon, then ok; within each by days cover asc
+  filteredStock.sort((a,b) => {
+    const rank = {critical:0, soon:1, ok:2};
+    if (rank[a.status] !== rank[b.status]) return rank[a.status] - rank[b.status];
+    return (a.totalCover||999) - (b.totalCover||999);
+  });
+
+  // ── Summary ──
+  const totalStockValue  = stockData.reduce((a,s) => a + s.value, 0);
+  const totalPoValue     = poData.reduce((a,p) => a + p.totalValue, 0);
+  const criticalCount    = enriched.filter(s => s.status === 'critical').length;
+  const soonCount        = enriched.filter(s => s.status === 'soon').length;
+
+  // ── Stock rows ──
+  const stockRows = filteredStock.map(st => {
+    const { vel, daysOnHand, daysOnOrder, onOrderQty, totalCover, status, nextEta, openPOs } = st;
+
+    // Colour scheme
+    const col = status === 'critical'
+      ? { color:'var(--red2)',  bg:'var(--red-lt)',   border:'rgba(192,57,43,0.2)'  }
+      : status === 'soon'
+      ? { color:'var(--amber)', bg:'var(--amber-lt)', border:'rgba(212,130,10,0.2)' }
+      : { color:'var(--green2)',bg:'var(--green-lt)', border:'rgba(39,174,96,0.2)'  };
+
+    // Cover progress bar (only when we have a run rate)
+    const coverBar = vel > 0 && totalCover > 0
+      ? `<div style="background:var(--off2);border-radius:100px;height:5px;overflow:hidden;margin:8px 0 3px">
+           <div style="height:100%;border-radius:100px;width:${Math.min((totalCover/(LEAD_DAYS*2))*100,100)}%;background:${col.color};transition:width 0.7s ease"></div>
+         </div>
+         <div style="font-family:var(--mono);font-size:10px;color:var(--text3);margin-bottom:6px">${Math.round(totalCover)}d total cover (${Math.round(daysOnHand||0)}d on hand + ${Math.round(daysOnOrder||0)}d on order)</div>`
+      : '';
+
+    // Action footer: ETA if PO exists, "No PO — Order Required" if not, nothing if OK
+    let actionBlock = '';
+    if (status === 'critical' || status === 'soon') {
+      if (nextEta) {
+        // Has a PO coming — show ETA details for ALL open POs for this product
+        const poLines = openPOs
+          .sort((a,b) => (a.daysToEta||999)-(b.daysToEta||999))
+          .map(po => {
+            const etaDate = po.eta
+              ? po.eta.toLocaleDateString('en-ZA',{day:'numeric',month:'short',year:'numeric'})
+              : 'Unknown';
+            const dColor = po.daysToEta < 0   ? 'var(--red2)'
+                         : po.daysToEta === 0 ? 'var(--amber)'
+                         : po.daysToEta <= 14 ? 'var(--green2)'
+                         : po.daysToEta <= 45 ? 'var(--amber)'
+                         :                      'var(--text2)';
+            const dLabel = po.daysToEta < 0   ? Math.abs(po.daysToEta) + ' days OVERDUE'
+                         : po.daysToEta === 0 ? 'Due today'
+                         : po.daysToEta === 1 ? '1 day away'
+                         :                      po.daysToEta + ' days away';
+            return `<div style="display:flex;justify-content:space-between;align-items:center;padding:6px 0;border-bottom:1px solid ${col.border}">
+              <div>
+                <div style="font-family:var(--mono);font-size:11px;color:var(--navy);font-weight:500">${po.poName}</div>
+                <div style="font-size:10px;color:var(--text3)">${Math.round(po.qtyOutstanding).toLocaleString()} cases · ${po.supplier||''}</div>
+              </div>
+              <div style="text-align:right">
+                <div style="font-size:10px;color:var(--text3)">ETA ${etaDate}</div>
+                <div style="font-family:var(--mono);font-size:11px;font-weight:600;color:${dColor}">${dLabel} away</div>
+              </div>
+            </div>`;
+          }).join('');
+        actionBlock = `<div style="margin-top:8px;padding:10px 12px;background:${col.bg};border-radius:8px;border:1px solid ${col.border}">
+          <div style="font-size:10px;font-weight:600;color:${col.color};text-transform:uppercase;letter-spacing:0.08em;margin-bottom:6px">Incoming Stock</div>
+          ${poLines}
+        </div>`;
+      } else {
+        // No PO at all — flag it
+        actionBlock = `<div style="margin-top:8px;padding:10px 12px;background:var(--red-lt);border-radius:8px;border:1px solid rgba(192,57,43,0.25);display:flex;align-items:center;gap:10px">
+          <div style="font-size:18px">⚠️</div>
+          <div>
+            <div style="font-size:11px;font-weight:700;color:var(--red)">No PO — Order Required</div>
+            <div style="font-size:10px;color:var(--text2);margin-top:2px">No confirmed purchase order found for this product</div>
+          </div>
+        </div>`;
+      }
+    }
+
+    // Status badge label
+    const nextEtaDays = nextEta ? nextEta.daysToEta : null;
+    const poStatus = nextEta
+      ? (nextEtaDays < 0 ? `PO ${Math.abs(nextEtaDays)}d Overdue` : nextEtaDays === 0 ? 'PO Due Today' : 'PO Incoming')
+      : null;
+    const badgeLabel = status === 'critical'
+      ? (nextEta ? '🔴 Order Now — ' + poStatus : '🔴 No PO — Order Required')
+      : status === 'soon'
+      ? (nextEta ? '🟡 Order Soon — ' + poStatus : '🟡 No PO — Order Soon')
+      : '🟢 OK';
+
+    return `<div class="product-row">
+      <!-- Header row -->
+      <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:8px;margin-bottom:10px">
+        <div style="flex:1">
+          <div style="font-size:13px;font-weight:500;color:var(--navy);line-height:1.3">${st.dispName}</div>
+          ${st.code?`<div class="product-code" style="margin-top:3px;display:inline-block">${st.code}</div>`:''}
+        </div>
+        <div style="font-size:10px;font-weight:600;white-space:nowrap;flex-shrink:0;background:${col.bg};color:${col.color};border-radius:5px;padding:3px 8px;border:1px solid ${col.border}">${badgeLabel}</div>
+      </div>
+
+      <!-- 4-column data grid -->
+      <div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:8px;font-family:var(--mono);font-size:11px">
+        <div>
+          <div style="color:var(--text3);font-size:9px;text-transform:uppercase;letter-spacing:0.07em;margin-bottom:3px">On Hand</div>
+          <div style="color:var(--navy);font-weight:500">${Math.round(st.available).toLocaleString()}</div>
+          <div style="color:var(--text3);font-size:10px">cases</div>
+        </div>
+        <div>
+          <div style="color:var(--text3);font-size:9px;text-transform:uppercase;letter-spacing:0.07em;margin-bottom:3px">On Order</div>
+          <div style="color:var(--navy);font-weight:500">${onOrderQty>0?Math.round(onOrderQty).toLocaleString():'—'}</div>
+          <div style="color:var(--text3);font-size:10px">${onOrderQty>0?'cases':''}</div>
+        </div>
+        <div>
+          <div style="color:var(--text3);font-size:9px;text-transform:uppercase;letter-spacing:0.07em;margin-bottom:3px">Run Rate</div>
+          <div style="color:var(--navy);font-weight:500">${vel>0?vel.toFixed(1):'—'}</div>
+          <div style="color:var(--text3);font-size:10px">${vel>0?'cases/day':'no sales'}</div>
+        </div>
+        <div>
+          <div style="color:var(--text3);font-size:9px;text-transform:uppercase;letter-spacing:0.07em;margin-bottom:3px">Stock Value</div>
+          <div style="color:var(--navy);font-weight:500">${fmtR(st.value)}</div>
+          <div style="color:var(--text3);font-size:10px">at cost</div>
+        </div>
+      </div>
+
+      ${coverBar}
+      ${actionBlock}
+    </div>`;
+  }).join('');
+
+  // ── PO rows ──
+  const poRows = poData
+    .filter(p => !srch || p.dispName.toLowerCase().includes(srch) || p.code.toLowerCase().includes(srch))
+    .sort((a,b) => (a.daysToEta ?? 9999) - (b.daysToEta ?? 9999))
+    .map(p => {
+      const vel = runRates[p.code] || 0;
+      const daysOfStock = vel > 0 ? Math.round(p.qtyOutstanding / vel) : null;
+      const etaStr = p.eta
+        ? p.eta.toLocaleDateString('en-ZA',{day:'numeric',month:'short',year:'numeric'})
+        : 'ETA unknown';
+      const daysCol = p.daysToEta === null ? 'var(--text3)'
+        : p.daysToEta < 0   ? 'var(--red2)'
+        : p.daysToEta === 0 ? 'var(--amber)'
+        : p.daysToEta <= 14 ? 'var(--green2)'
+        : p.daysToEta <= 45 ? 'var(--amber)'
+        : 'var(--text2)';
+      return `<div class="product-row">
+        <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px;margin-bottom:8px">
+          <div style="flex:1">
+            <div style="font-size:13px;font-weight:500;color:var(--navy)">${p.dispName}</div>
+            <div style="font-family:var(--mono);font-size:10px;color:var(--gold);margin-top:2px">${p.poName}${p.code?' · ['+p.code+']':''}</div>
+            ${p.supplier?`<div style="font-size:10px;color:var(--text3);margin-top:1px">${p.supplier}</div>`:''}
+          </div>
+          <div style="text-align:right;flex-shrink:0">
+            <div style="font-family:var(--mono);font-size:14px;font-weight:500;color:var(--navy)">${fmtR(p.totalValue)}</div>
+            <div style="font-size:10px;color:var(--text3)">${Math.round(p.qtyOutstanding).toLocaleString()} cases</div>
+            ${daysOfStock?`<div style="font-size:10px;color:var(--text2)">${daysOfStock}d of stock</div>`:''}
+          </div>
+        </div>
+        <div style="display:flex;justify-content:space-between;align-items:center;font-family:var(--mono);font-size:11px">
+          <span style="color:var(--text2)">📅 ${etaStr}</span>
+          <span style="color:${daysCol};font-weight:600">${
+            p.daysToEta===null ? '—'
+            : p.daysToEta < 0  ? Math.abs(p.daysToEta)+'d OVERDUE'
+            : p.daysToEta===0  ? 'Due today'
+            : p.daysToEta+'d to arrival'
+          }</span>
+        </div>
+      </div>`;
+    }).join('');
+
+  const filterBtns = [
+    { v:'all',      l:'All' },
+    { v:'critical', l:'🔴 Order Now' },
+    { v:'soon',     l:'🟡 Order Soon' },
+    { v:'ok',       l:'🟢 OK' },
+  ].map(({v,l}) => {
+    const active = invFilter === v;
+    return `<button onclick="invFilter='${v}';renderPage('inventory')" style="border:1.5px solid ${active?'var(--navy)':'var(--border)'};border-radius:100px;padding:5px 13px;font-size:11px;font-weight:600;background:${active?'var(--navy)':'var(--white)'};color:${active?'#fff':'var(--text2)'};cursor:pointer;white-space:nowrap">${l}</button>`;
+  }).join('');
+
+  return `<div class="page">
+
+    <!-- SUMMARY -->
+    <div class="stats-row" style="grid-template-columns:1fr 1fr">
+      <div class="stat-box">
+        <div class="stat-val" style="font-size:17px">${fmtR(totalStockValue)}</div>
+        <div class="stat-lbl">Stock Value</div>
+      </div>
+      <div class="stat-box">
+        <div class="stat-val" style="font-size:17px">${fmtR(totalPoValue)}</div>
+        <div class="stat-lbl">On Order Value</div>
+      </div>
+    </div>
+    <div class="stats-row" style="grid-template-columns:1fr 1fr 1fr;margin-top:-4px">
+      <div class="stat-box">
+        <div class="stat-val" style="font-size:20px;color:${criticalCount?'var(--red2)':'var(--green2)'}">${criticalCount}</div>
+        <div class="stat-lbl">Order Now</div>
+      </div>
+      <div class="stat-box">
+        <div class="stat-val" style="font-size:20px;color:${soonCount?'var(--amber)':'var(--green2)'}">${soonCount}</div>
+        <div class="stat-lbl">Order Soon</div>
+      </div>
+      <div class="stat-box">
+        <div class="stat-val" style="font-size:20px;color:var(--text2)">${daysElapsed}d</div>
+        <div class="stat-lbl">Rate Window</div>
+      </div>
+    </div>
+
+    <!-- SEARCH + FILTER -->
+    <input type="text" placeholder="Search products…" value="${invSearch}"
+      oninput="invSearch=this.value;renderPage('inventory')"
+      style="width:100%;background:var(--white);border:1.5px solid var(--border);border-radius:10px;color:var(--text);font-family:var(--body);font-size:14px;padding:10px 14px;outline:none;box-shadow:var(--shadow);margin-bottom:8px">
+    <div style="display:flex;gap:6px;margin-bottom:12px;overflow-x:auto">
+      ${filterBtns}
+      <button onclick="stockData=[];poData=[];loadInventory()" style="border:1.5px solid var(--border);border-radius:100px;padding:5px 13px;font-size:11px;font-weight:600;background:var(--white);color:var(--text2);cursor:pointer;white-space:nowrap;margin-left:auto">↻ Refresh</button>
+    </div>
+
+    <!-- STOCK ON HAND -->
+    <div class="card" style="margin-bottom:12px">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">
+        <div class="section-label" style="margin-bottom:0">Stock on Hand — CTP</div>
+        <div style="font-family:var(--mono);font-size:10px;color:var(--text3)">${filteredStock.length} of ${enriched.length}</div>
+      </div>
+      ${stockRows || '<div class="empty">No stock matches filter</div>'}
+    </div>
+
+    <!-- OPEN POs -->
+    <div class="card">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">
+        <div class="section-label" style="margin-bottom:0">Open Purchase Orders</div>
+        <div style="font-family:var(--mono);font-size:10px;color:var(--text3)">${poData.length} lines</div>
+      </div>
+      ${poRows || '<div class="empty">No open purchase orders</div>'}
+    </div>
+
   </div>`;
 }
 
