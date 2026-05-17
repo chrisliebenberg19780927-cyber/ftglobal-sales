@@ -741,49 +741,45 @@ function filteredSales() {
   });
 }
 
-// Build stats — GM fix:
-// Company GM (admin, no rep filter) = sum all lines for the filtered month orders
-// Per-rep GM = sum lines for that rep's orders only
-// This ensures the company total GP is correct regardless of rep filter
+// isProductLine: only lines with a numeric product code [10xxx] are real goods.
+// Excludes Rent, Consulting Fees, etc. from sales and GP calculations.
+function isProductLine(rawProd) {
+  return /\[\d+\]/.test(rawProd || '');
+}
+
 function buildStats() {
   const sales = filteredSales();
-
-  // Order IDs for filtered sales (used for sales total + product breakdown)
   const orderIds = new Set(sales.map(r => extractOrderId(r[5])));
 
-  // For COMPANY-LEVEL cost: if admin with no rep filter, use ALL orders in the month
-  // so that GP = total revenue - total cost (not just matched-rep cost)
-  let costOrderIds = orderIds;
+  // Company-level: all orders in the month (ignore rep filter for totals)
+  let allMonthOrderIds = orderIds;
   if (currentUser.role === 'admin' && !filteredRep) {
-    // Get all order IDs for the month, ignoring rep filter
     const allMonthSales = salesData.filter(r => {
       if(!r[0]) return false;
-      if(filteredMonth) {
-        const d = parseDate(r[0]);
-        if(getMonthKey(d) !== filteredMonth) return false;
-      }
+      if(filteredMonth) { const d=parseDate(r[0]); if(getMonthKey(d)!==filteredMonth) return false; }
       return true;
     });
-    costOrderIds = new Set(allMonthSales.map(r => extractOrderId(r[5])));
+    allMonthOrderIds = new Set(allMonthSales.map(r => extractOrderId(r[5])));
   }
 
+  // totalSales & totalCost: PRODUCT lines only (exclude Rent, Consulting, etc.)
   let totalSales = 0, totalCost = 0;
   const productMap = {};
 
-  sales.forEach(r => { totalSales += parseMoney(r[4]); });
-
   linesData.forEach(r => {
     const id = extractOrderId(r[0]);
+    const rawProd = r[1] || '';
+    const isProduct = isProductLine(rawProd);
 
-    // Cost: use costOrderIds (all-company when admin, rep-specific when filtered)
-    if (costOrderIds.has(id)) {
-      totalCost += parseMoney(r[5]); // col F = total cost
+    // Company-level totals: all month orders, products only
+    if (allMonthOrderIds.has(id) && isProduct) {
+      totalSales += parseMoney(r[3]); // col D = line subtotal (revenue)
+      totalCost  += parseMoney(r[5]); // col F = total cost
     }
 
-    // Product breakdown: only for the filtered sales orders
-    if (!orderIds.has(id)) return;
+    // Product map: filtered orders only, products only
+    if (!orderIds.has(id) || !isProduct) return;
 
-    const rawProd = r[1] || '';
     const codeMatch = rawProd.match(/\[([^\]]+)\]/);
     const code = codeMatch ? codeMatch[1] : '';
     const name = rawProd.replace(/^\d+,\s*/,'').replace(/\[[^\]]+\]\s*/,'').trim() || rawProd;
@@ -798,42 +794,47 @@ function buildStats() {
     productMap[key].cost  += cost;
   });
 
-  // When admin + no rep filter: totalSales should also be ALL month sales
-  let displaySales = totalSales;
-  if (currentUser.role === 'admin' && !filteredRep) {
-    displaySales = 0;
-    salesData.forEach(r => {
-      if(!r[0]) return;
-      if(filteredMonth) {
-        const d = parseDate(r[0]);
-        if(getMonthKey(d) !== filteredMonth) return;
-      }
-      displaySales += parseMoney(r[4]);
-    });
-  }
+  const gp    = totalSales - totalCost;
+  const gpPct = totalSales > 0 ? (gp / totalSales * 100) : 0;
 
-  const gp    = displaySales - totalCost;
-  const gpPct = displaySales > 0 ? (gp / displaySales * 100) : 0;
+  const soldProducts = Object.values(productMap);
 
-  const products = Object.values(productMap).sort((a,b) => b.sales - a.sales);
-
-  // Match product targets
+  // Match targets and flag matched ones
   const tMonths = filteredMonth ? targetsData.filter(t=>(t[3]||'')===filteredMonth) : targetsData;
-  products.forEach(p => {
+  soldProducts.forEach(p => {
     const t = tMonths.find(t => {
       const tc = (t[0]||'').match(/\[([^\]]+)\]/);
       return tc && tc[1] === p.code;
     });
     p.target     = t ? parseMoney(t[5]) : 0;
     p.unitTarget = t ? parseNum(t[4])   : 0;
+    if (t) t._matched = true;
   });
+
+  // Add products that have targets but zero sales this period
+  tMonths.forEach(t => {
+    if (t._matched) return;
+    const codeMatch = (t[0]||'').match(/\[([^\]]+)\]/);
+    const code = codeMatch ? codeMatch[1] : '';
+    const name = (t[0]||'').replace(/\[[^\]]+\]\s*/,'').trim();
+    if (!code) return;
+    soldProducts.push({
+      name, code, rawProduct: t[0],
+      qty:0, sales:0, cost:0,
+      target: parseMoney(t[5]),
+      unitTarget: parseNum(t[4])
+    });
+  });
+
+  // Sort: highest sales first, then zero-sales by target desc
+  const products = soldProducts.sort((a,b) => b.sales - a.sales || b.target - a.target);
 
   const repTargets = JSON.parse(localStorage.getItem('repTargets')||'{}');
   const totalOrders = currentUser.role==='admin'&&!filteredRep
     ? salesData.filter(r=>{if(!r[0])return false;if(filteredMonth){const d=parseDate(r[0]);return getMonthKey(d)===filteredMonth;}return true;}).length
     : sales.length;
 
-  return { totalSales: displaySales, totalCost, gp, gpPct, products, orders: totalOrders, repTargets };
+  return { totalSales, totalCost, gp, gpPct, products, orders: totalOrders, repTargets };
 }
 
 // ═══════ FORMATTERS ═══════
@@ -941,7 +942,8 @@ function renderReps(s) {
     let total=0, cost=0;
     repSales.forEach(r => { total+=parseMoney(r[4]); });
     linesData.forEach(r => {
-      if(repOrderIds.has(extractOrderId(r[0]))) cost+=parseMoney(r[5]);
+      // Only product lines count toward cost (exclude Rent, Consulting, etc.)
+      if(repOrderIds.has(extractOrderId(r[0])) && isProductLine(r[1]||'')) cost+=parseMoney(r[5]);
     });
     const gp=total-cost, gpPct=total>0?(gp/total*100):0;
     const target=s.repTargets[name]||0;
@@ -967,20 +969,29 @@ function renderReps(s) {
 function renderProducts(s) {
   const rows = s.products.map(p => {
     const pct = p.target>0 ? (p.sales/p.target)*100 : -1;
+    const hasTarget = p.target > 0;
+    const fillCls = pct>=100?'green':pct>=60?'gold':'danger';
     return `<div class="product-row">
       <div class="product-top">
         <div class="product-name">${p.name||p.rawProduct}</div>
         ${p.code?`<div class="product-code">${p.code}</div>`:''}
       </div>
-      <div class="product-nums">
-        <span style="color:var(--navy);font-weight:500">${fmtR(p.sales)}</span>
-        <span>${pct>=0
+      <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:4px;gap:8px">
+        <span style="font-family:var(--mono);font-size:13px;color:var(--navy);font-weight:500">
+          ${p.sales>0?fmtR(p.sales):'<span style="color:var(--text3)">R 0</span>'}
+        </span>
+        ${hasTarget
           ? `<span class="badge ${badgeClass(pct)}">${fmtPct(pct)}</span>`
-          : '<span style="color:var(--text3);font-size:11px">No target</span>'}</span>
+          : '<span style="color:var(--text3);font-size:11px">No target</span>'}
       </div>
-      ${p.target>0
-        ? `<div class="progress-track light" style="margin-top:5px"><div class="progress-fill ${pct>=100?'green':pct>=60?'gold':'danger'}" style="width:${Math.min(pct,100)}%"></div></div>`
-        : ''}
+      ${hasTarget ? `
+      <div class="progress-track light"><div class="progress-fill ${fillCls}" style="width:${Math.min(pct,100)}%"></div></div>
+      <div style="display:flex;justify-content:space-between;font-family:var(--mono);font-size:10px;color:var(--text3);margin-top:4px">
+        <span>Target: ${fmtR(p.target)}${p.unitTarget>0?' · '+p.unitTarget.toLocaleString()+' units':''}</span>
+        <span>${p.qty>0?p.qty.toLocaleString()+' sold':''}</span>
+      </div>` : `
+      ${p.qty>0?`<div style="font-family:var(--mono);font-size:10px;color:var(--text3)">${p.qty.toLocaleString()} units sold</div>`:''}
+      `}
     </div>`;
   });
   return `<div class="page"><div class="card">
