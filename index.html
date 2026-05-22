@@ -921,7 +921,7 @@ async function loadInventory() {
       throw new Error('No data returned from Google Sheets. Check that Stock and PO tabs are published.');
     }
 
-    // Stock tab: A=Code, B=DisplayName, C=QOH, D=Cost
+    // Stock tab: A=Code, B=DisplayName, C=QOH, D=Cost, E=Odoo ID
     stockData = stockRows
       .filter(r => r[0] && r[0].toString().trim())
       .map(r => {
@@ -930,12 +930,17 @@ async function loadInventory() {
         const dispName = nameRaw.replace(/^\[[^\]]+\]\s*/,'').trim() || nameRaw;
         const qty      = parseNum(r[2]);
         const unitCost = parseMoney(r[3]);
+        const odooId   = (r[4]||'').toString().trim();
         return {
-          pid: code, code, dispName,
+          pid: code, code, dispName, odooId,
           qty, reserved:0, available:qty,
           value: qty * unitCost, unitCost,
         };
       });
+
+    // Build lookup: Odoo product ID → stock item (for PO matching)
+    const stockByOdooId = {};
+    stockData.forEach(s => { if(s.odooId) stockByOdooId[s.odooId] = s; });
 
     // Build lookup: product name keywords → stock code (for PO matching)
     // PO sheet has product name in col D, stock has dispName
@@ -961,8 +966,7 @@ async function loadInventory() {
       .map(r => {
         const poId          = (r[0]||'').toString().trim();
         const supplier      = (r[1]||'').toString().trim();
-        const odooProductId = (r[2]||'').toString().trim();
-        const productName   = (r[3]||'').toString().trim();
+        const productName   = (r[3]||'').toString().trim(); // col D = product name
         const qtyOrdered    = parseNum(r[4]);
         const qtyReceived   = parseNum(r[5]);
         const qtyOutstanding = Math.max(0, qtyOrdered - qtyReceived);
@@ -972,9 +976,11 @@ async function loadInventory() {
         const eta           = datePlanned ? parseDate(datePlanned) : null;
         const daysToEta     = eta ? Math.round((eta - new Date())/86400000) : null;
 
-        // Match to stock by product name
-        const code = findCodeByName(productName);
-        const matchedStock = stockData.find(s => s.code === code);
+        // Match to stock by Odoo product ID (col I) first, then by name
+        const odooProductId = (r[8]||'').toString().trim();
+        let matchedStock = odooProductId ? stockByOdooId[odooProductId] : null;
+        if (!matchedStock) matchedStock = stockData.find(s => findCodeByName(productName) === s.code);
+        const code     = matchedStock ? matchedStock.code : '';
         const dispName = matchedStock ? matchedStock.dispName : productName;
 
         return {
@@ -1257,8 +1263,9 @@ function renderTargets(s) {
     if (tStatusF !== 'all') {
       const salesTarget = parseMoney(t[5]);
       const actual = salesByCode[codeMatch?codeMatch[1]:''] || {sales:0};
+      const isOversold = salesTarget === 0 && actual.sales > 0;
       const pct = salesTarget>0 ? (actual.sales/salesTarget)*100 : 0;
-      const status = paceStatus(pct, mProg);
+      const status = isOversold ? 'oversold' : paceStatus(pct, mProg);
       if (tStatusF !== status) return false;
     }
     return true;
@@ -1327,8 +1334,8 @@ function renderTargets(s) {
         oninput="renderPage('targets')"
         style="width:100%;background:var(--off);border:1.5px solid var(--border);border-radius:10px;color:var(--text);font-family:var(--body);font-size:13px;padding:9px 13px;outline:none;margin-bottom:10px">
       <div style="display:flex;gap:6px;overflow-x:auto;padding-bottom:4px;margin-bottom:12px">
-        ${['all','achieved','ontrack','behind'].map(v=>{
-          const labels={all:'All',achieved:'✓ Achieved',ontrack:'On Track',behind:'Behind'};
+        ${['all','achieved','ontrack','behind','oversold'].map(v=>{
+          const labels={all:'All',achieved:'✓ Achieved',ontrack:'On Track',behind:'Behind',oversold:'🚀 Oversold'};
           const cur=(document.getElementById('targetStatusFilter')||{}).value||'all';
           const active=cur===v;
           const colors={
@@ -1336,6 +1343,7 @@ function renderTargets(s) {
             achieved: active?'background:var(--green-lt);color:var(--green);border-color:rgba(39,174,96,0.4)':'',
             ontrack:  active?'background:var(--amber-lt);color:var(--amber);border-color:rgba(212,130,10,0.4)':'',
             behind:   active?'background:var(--red-lt);color:var(--red);border-color:rgba(192,57,43,0.4)':'',
+            oversold: active?'background:var(--navy-lt);color:var(--navy);border-color:rgba(26,37,64,0.4)':'',
           };
           return `<button onclick="document.getElementById('targetStatusFilter').value='${v}';renderPage('targets')" style="border:1.5px solid var(--border);border-radius:100px;padding:5px 13px;font-size:11px;font-weight:600;background:var(--white);color:var(--text2);cursor:pointer;white-space:nowrap;${colors[v]}">${labels[v]}</button>`;
         }).join('')}
@@ -1345,6 +1353,7 @@ function renderTargets(s) {
         <span style="display:flex;align-items:center;gap:5px;font-size:11px;color:var(--green)"><span style="width:8px;height:8px;border-radius:50%;background:var(--green2);display:inline-block"></span>Achieved</span>
         <span style="display:flex;align-items:center;gap:5px;font-size:11px;color:var(--amber)"><span style="width:8px;height:8px;border-radius:50%;background:var(--amber);display:inline-block"></span>On Track</span>
         <span style="display:flex;align-items:center;gap:5px;font-size:11px;color:var(--red)"><span style="width:8px;height:8px;border-radius:50%;background:var(--red2);display:inline-block"></span>Behind</span>
+        <span style="display:flex;align-items:center;gap:5px;font-size:11px;color:var(--navy)"><span style="width:8px;height:8px;border-radius:50%;background:var(--navy);display:inline-block"></span>Oversold</span>
       </div>
       ${prodRows.length?prodRows:'<div class="empty">No products match filter</div>'}
     </div>`:''}
