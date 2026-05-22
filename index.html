@@ -897,10 +897,17 @@ async function loadInventory() {
   invLoading = true; invError = '';
   renderPage('inventory');
   try {
-    const [stockRows, poRows] = await Promise.all([
-      fetchCSV(URLS.stock),
-      fetchCSV(URLS.po)
-    ]);
+    // Fetch Stock and PO tabs separately so we can diagnose which fails
+    let stockRows = [], poRows = [];
+    try { stockRows = await fetchCSV(URLS.stock); } 
+    catch(e) { console.error('Stock fetch failed:', e); }
+    try { poRows = await fetchCSV(URLS.po); }
+    catch(e) { console.error('PO fetch failed:', e); }
+
+    console.log('Stock rows:', stockRows.length, 'PO rows:', poRows.length);
+    if (stockRows.length === 0 && poRows.length === 0) {
+      throw new Error('No data returned from Google Sheets. Check that Stock and PO tabs are published.');
+    }
 
     // Stock tab: A=Code, B=DisplayName, C=QOH, D=Cost
     stockData = stockRows
@@ -977,6 +984,33 @@ async function loadInventory() {
     invError = e.message;
     renderPage('inventory');
   }
+}
+
+// ═══════ NAV ═══════
+function showPage(page) {
+  currentPage = page;
+  document.querySelectorAll('.nav-item').forEach(el => el.classList.remove('active'));
+  const nav = document.getElementById('nav-' + page);
+  if (nav) nav.classList.add('active');
+  if (page === 'inventory' && !invLoading && !stockData.length) {
+    loadInventory();
+  } else {
+    renderPage(page);
+  }
+}
+
+function renderPage(page) {
+  if (page === 'inventory') {
+    document.getElementById('content').innerHTML = renderInventory(buildStats());
+    return;
+  }
+  if (!salesData.length && !targetsData.length) return;
+  const stats = buildStats();
+  const c = document.getElementById('content');
+  if (page === 'overview')  c.innerHTML = renderOverview(stats);
+  if (page === 'reps')      c.innerHTML = renderReps(stats);
+  if (page === 'products')  c.innerHTML = renderProducts(stats);
+  if (page === 'targets')   c.innerHTML = renderTargets(stats);
 }
 
 // ═══════ INVENTORY PAGE ═══════
