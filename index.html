@@ -895,7 +895,9 @@ const LEAD_DAYS = 90;
 
 async function loadInventory() {
   invLoading = true; invError = '';
-  renderPage('inventory');
+  // Show loading state directly without going through renderPage
+  const c = document.getElementById('content');
+  if (c) c.innerHTML = '<div class="page"><div class="loading-state"><div class="loader"></div><div>Loading inventory data…</div></div></div>';
   try {
     // Fetch Stock and PO tabs separately so we can diagnose which fails
     let stockRows = [], poRows = [];
@@ -992,21 +994,28 @@ function showPage(page) {
   document.querySelectorAll('.nav-item').forEach(el => el.classList.remove('active'));
   const nav = document.getElementById('nav-' + page);
   if (nav) nav.classList.add('active');
-  if (page === 'inventory' && !invLoading && !stockData.length) {
-    loadInventory();
+  if (page === 'inventory') {
+    if (!invLoading && !stockData.length) {
+      loadInventory(); // triggers renderPage when done
+    } else {
+      renderPage(page); // show current state (loading/error/data)
+    }
   } else {
     renderPage(page);
   }
 }
 
 function renderPage(page) {
+  const c = document.getElementById('content');
   if (page === 'inventory') {
-    document.getElementById('content').innerHTML = renderInventory(buildStats());
+    // Inventory has its own data — doesn't need buildStats()
+    // Pass a minimal stats object with products for run rate calc
+    const stats = (salesData.length || targetsData.length) ? buildStats() : { products:[], repTargets:{} };
+    c.innerHTML = renderInventory(stats);
     return;
   }
   if (!salesData.length && !targetsData.length) return;
   const stats = buildStats();
-  const c = document.getElementById('content');
   if (page === 'overview')  c.innerHTML = renderOverview(stats);
   if (page === 'reps')      c.innerHTML = renderReps(stats);
   if (page === 'products')  c.innerHTML = renderProducts(stats);
